@@ -4,14 +4,15 @@ import federation from '@originjs/vite-plugin-federation'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [
     react(),
     federation({
       name: 'core-app',
       filename: 'remoteEntry.js',
       remotes: {
-        wmsApp: 'http://localhost:5001/assets/remoteEntry.js',
-        asrsApp: 'http://localhost:5002/assets/remoteEntry.js',
+        wmsApp: process.env.VITE_WMS_REMOTE || 'http://localhost:5001/assets/remoteEntry.js',
+        asrsApp: process.env.VITE_ASRS_REMOTE || 'http://localhost:5002/assets/remoteEntry.js',
       },
       exposes: {
         './SharedNotification': './src/components/SharedNotification.tsx',

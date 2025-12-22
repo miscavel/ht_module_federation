@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  gateway:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - core_app
+      - wms_app
+      - asrs_app
+
+  core_app:
+    build:
+      context: ./Core
+      dockerfile: Dockerfile
+    # In a real scenario, you would use a specific image tag
+    # image: my-registry/core:v1.7.0
+
+  wms_app:
+    build:
+      context: ./WMS
+      dockerfile: Dockerfile
+    # image: my-registry/wms:v2.5.1
+
+  asrs_app:
+    build:
+      context: ./ASRS
+      dockerfile: Dockerfile
+    # image: my-registry/asrs:v2.7.0
