@@ -16,6 +16,19 @@ This repository demonstrates two approaches for structuring an Ionic Capacitor p
      /ASRS (Library Package)
 ```
 
+## Application Flow
+
+Both approaches now share a consistent navigation flow and user experience:
+
+1.  **Login Page (`/login`)**: Entry point. Enter any username to proceed.
+2.  **Dashboard (`/app/home`)**: Main landing page with quick links.
+3.  **Side Menu**: Accessible via the hamburger icon, providing navigation to:
+    *   Home
+    *   Profile
+    *   WMS Module
+    *   ASRS Module
+4.  **Profile Page (`/app/profile`)**: Displays user info and Logout button.
+
 ## 1. Module Federation Approach
 
 In this approach, `Core` is the host application that dynamically loads `WMS` and `ASRS` at runtime. This allows for independent deployment and updates of the modules.

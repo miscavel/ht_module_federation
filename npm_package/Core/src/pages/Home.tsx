@@ -1,4 +1,4 @@
-import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButton } from '@ionic/react';
+import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButton, IonButtons, IonMenuButton } from '@ionic/react';
 import React from 'react';
 import { useHistory } from 'react-router-dom';
 
@@ -9,7 +9,10 @@ const Home: React.FC = () => {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>Core Application (NPM)</IonTitle>
+          <IonButtons slot="start">
+            <IonMenuButton />
+          </IonButtons>
+          <IonTitle>Core Dashboard (NPM)</IonTitle>
         </IonToolbar>
       </IonHeader>
       <IonContent fullscreen className="ion-padding">
@@ -20,11 +23,12 @@ const Home: React.FC = () => {
         </IonHeader>
         
         <h2>Welcome to Core App (NPM Approach)</h2>
-        <p>This is the host application with Capacitor integration.</p>
+        <p>Select a module from the menu or use the quick links below.</p>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <IonButton onClick={() => history.push('/wms')}>Go to WMS Module</IonButton>
-            <IonButton onClick={() => history.push('/asrs')}>Go to ASRS Module</IonButton>
+            <IonButton onClick={() => history.push('/app/wms')}>Go to WMS Module</IonButton>
+            <IonButton onClick={() => history.push('/app/asrs')}>Go to ASRS Module</IonButton>
+            <IonButton fill="outline" onClick={() => history.push('/app/profile')}>View Profile</IonButton>
         </div>
       </IonContent>
     </IonPage>

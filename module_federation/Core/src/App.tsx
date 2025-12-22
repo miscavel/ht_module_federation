@@ -1,8 +1,11 @@
 import React, { Suspense } from 'react';
 import { Redirect, Route } from 'react-router-dom';
-import { IonApp, IonRouterOutlet, setupIonicReact } from '@ionic/react';
+import { IonApp, IonRouterOutlet, setupIonicReact, IonSplitPane } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import Home from './pages/Home';
+import Login from './pages/Login';
+import Profile from './pages/Profile';
+import Menu from './components/Menu';
 
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/react/css/core.css';
@@ -22,21 +25,37 @@ const App: React.FC = () => (
   <IonApp>
     <IonReactRouter>
       <IonRouterOutlet>
-        <Route exact path="/home">
-          <Home />
+        <Route exact path="/login">
+          <Login />
         </Route>
-        <Route path="/wms">
-          <Suspense fallback={<div>Loading WMS...</div>}>
-            <WMSApp />
-          </Suspense>
-        </Route>
-        <Route path="/asrs">
-          <Suspense fallback={<div>Loading ASRS...</div>}>
-            <ASRSApp />
-          </Suspense>
-        </Route>
+        <Route path="/app" render={() => (
+          <IonSplitPane contentId="main">
+            <Menu />
+            <IonRouterOutlet id="main">
+              <Route exact path="/app/home">
+                <Home />
+              </Route>
+              <Route exact path="/app/profile">
+                <Profile />
+              </Route>
+              <Route path="/app/wms">
+                <Suspense fallback={<div>Loading WMS...</div>}>
+                  <WMSApp />
+                </Suspense>
+              </Route>
+              <Route path="/app/asrs">
+                <Suspense fallback={<div>Loading ASRS...</div>}>
+                  <ASRSApp />
+                </Suspense>
+              </Route>
+              <Route exact path="/app">
+                <Redirect to="/app/home" />
+              </Route>
+            </IonRouterOutlet>
+          </IonSplitPane>
+        )} />
         <Route exact path="/">
-          <Redirect to="/home" />
+          <Redirect to="/login" />
         </Route>
       </IonRouterOutlet>
     </IonReactRouter>
