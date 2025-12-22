@@ -67,6 +67,46 @@ We are building a system with the following components:
     *   **Solution**: Core exposes "Native Bridges" (e.g., `SharedNotification`, `CameraService`). WMS consumes these.
     *   **Benefit**: This enforces a clean architecture where Core controls the hardware, and feature modules just request actions.
 
+### 5. Special Case: The "Combinator App" Pattern (NPM Variant)
+A common alternative proposal is to have specific "Shell Apps" for each combination (e.g., a "WMS Shell" that installs `core` and `wms` packages). While this achieves build-time composition, it fails to solve the maintenance overhead.
+
+| Feature | NPM "Combinator" Approach | Module Federation Approach |
+| :--- | :--- | :--- |
+| **Update Core Logic** | Must rebuild & redeploy **ALL** Combinator apps (Core App, WMS App, ASRS App). | Deploy Core once. All apps update instantly. |
+| **Native Plugins** | Must maintain Android/iOS projects in **ALL** repos. | Maintain Android/iOS project **ONLY** in Core. |
+| **Dependency Conflict** | High risk of duplicate libraries (Diamond Dependency). | Runtime negotiation (Shared Scope). |
+| **Build Time** | Slower (bundles everything). | Faster (bundles only local code). |
+
+**Why "Combinator" fails for this scenario:**
+1.  **The "Diamond Dependency" Hell**: If ASRS depends on WMS, and both depend on Core, you risk bundling two versions of Core if versions drift. This causes "Singleton" errors (e.g., React Hooks failures).
+2.  **The "Native Plugin" Trap**: If you have 3 different Combinator Apps, you have 3 different Native Projects (Android/iOS). Adding a camera plugin requires updating native code in 3 repositories. With Module Federation, you only have **one** Native App (Core).
+
+### 6. Concrete Scenarios
+
+#### Scenario A: Critical Security Fix in Core
+*   **Context**: A vulnerability is found in the Login component in `Core`.
+*   **NPM Approach**:
+    1.  Fix bug in `Core` repo -> Release `Core v1.7.2`.
+    2.  Go to `WMS` repo -> Update `package.json` -> `npm install` -> Rebuild -> Redeploy WMS App.
+    3.  Go to `ASRS` repo -> Update `package.json` -> `npm install` -> Rebuild -> Redeploy ASRS App.
+    *   *Result*: 3 deployments required. Risk of ASRS team forgetting to update.
+*   **Module Federation**:
+    1.  Fix bug in `Core` repo -> Release `Core v1.7.2` container.
+    2.  Restart `Core` container.
+    *   *Result*: WMS and ASRS users immediately see the fixed Login screen. 1 deployment required.
+
+#### Scenario B: Adding a Native Barcode Scanner
+*   **Context**: WMS needs to scan QR codes.
+*   **NPM Approach**:
+    1.  Install `@capacitor/barcode-scanner` in `WMS` repo.
+    2.  **Problem**: The WMS web code runs inside the *Core* Native App shell. If the Core Native App hasn't added the Java/Swift code for the scanner, the app crashes.
+    3.  You must update the `Core` repo's `android/` folder to include the plugin.
+    4.  If you have a separate "WMS Combinator App", you must update *its* `android/` folder too.
+*   **Module Federation**:
+    1.  Update `Core` repo: Install plugin, update `android/` folder, expose `ScannerService`.
+    2.  `WMS` team simply calls `import { scan } from 'core/ScannerService'`.
+    3.  No native code changes ever happen in the `WMS` repo.
+
 ## Conclusion
 
 For the scenario of **independent mono-repos** and **Docker-based composition**, **Module Federation** is the superior choice. It allows the infrastructure (Docker/Nginx) to define the application composition rather than the build tool (Webpack/Vite), enabling true independent lifecycles for Core, WMS, and ASRS.
