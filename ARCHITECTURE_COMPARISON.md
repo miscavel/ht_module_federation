@@ -107,6 +107,40 @@ A common alternative proposal is to have specific "Shell Apps" for each combinat
     2.  `WMS` team simply calls `import { scan } from 'core/ScannerService'`.
     3.  No native code changes ever happen in the `WMS` repo.
 
+### 7. Alternative Approaches Considered
+
+It is healthy to doubt the complexity of Module Federation. Here are other industry-standard approaches and why they were ruled out for this specific project:
+
+#### A. Ionic Portals (The "Enterprise" Native Solution)
+*   **Concept**: A native mobile technology that allows you to embed multiple web apps (Portals) into a single native shell. It is essentially "Module Federation for Native".
+*   **Pros**:
+    *   Official support from Ionic.
+    *   Granular updates via Appflow (Live Updates).
+    *   Better isolation of native contexts.
+*   **Cons**:
+    *   **Cost**: It is a paid enterprise product.
+    *   **Complexity**: Requires significant native (iOS/Android) development knowledge to wire up the Portals.
+    *   **Fit**: Best for teams with dedicated native mobile engineers. Our team is primarily web-focused using Capacitor.
+
+#### B. Automated Monorepo (The "Brute Force" NPM Solution)
+*   **Concept**: Put Core, WMS, and ASRS into a single Git repository (Monorepo) using tools like Nx or Turbo.
+*   **Pros**:
+    *   Solves versioning: Everything is always at `HEAD`. No "v1 vs v2" conflicts.
+    *   Solves native plugins: One `android/` folder for the whole repo.
+*   **Cons**:
+    *   **Violates Constraint**: We explicitly require **independent mono-repos** because WMS and ASRS have their own backends and lifecycles.
+    *   **Coupling**: A bug in WMS can block the deployment of ASRS if the CI pipeline is shared.
+
+#### C. Iframe Composition (The "Old School" Solution)
+*   **Concept**: Core loads WMS inside an `<iframe>`.
+*   **Pros**:
+    *   Perfect isolation (CSS/JS cannot leak).
+    *   Technology agnostic (WMS could be Angular, Core is React).
+*   **Cons**:
+    *   **UX**: Scrolling and navigation sync is difficult on mobile.
+    *   **Native Access**: Accessing Capacitor plugins from an iframe requires a complex `postMessage` bridge.
+    *   **Performance**: High memory usage (loading multiple browser contexts).
+
 ## Conclusion
 
 For the scenario of **independent mono-repos** and **Docker-based composition**, **Module Federation** is the superior choice. It allows the infrastructure (Docker/Nginx) to define the application composition rather than the build tool (Webpack/Vite), enabling true independent lifecycles for Core, WMS, and ASRS.
