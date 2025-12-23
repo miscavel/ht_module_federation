@@ -141,6 +141,24 @@ It is healthy to doubt the complexity of Module Federation. Here are other indus
     *   **Native Access**: Accessing Capacitor plugins from an iframe requires a complex `postMessage` bridge.
     *   **Performance**: High memory usage (loading multiple browser contexts).
 
+#### D. NPM Git Dependencies (The "Private" Solution)
+*   **Concept**: Instead of a registry, Core depends directly on the Git repo: `"wms": "git+ssh://git@github.com/org/wms.git#v2.0.0"`.
+*   **Pros**:
+    *   No need for a private NPM registry (Nexus/Artifactory).
+    *   Access to specific commits/branches.
+*   **Cons**:
+    *   **Build Speed**: `npm install` becomes extremely slow as it clones the full repo history.
+    *   **Coupling**: Still suffers from the "Release Train" problem. You must rebuild Core to update the Git hash.
+
+#### E. Import Maps (The "Future" Standard)
+*   **Concept**: You publish WMS as an ES Module to a CDN. Core uses a browser native `<script type="importmap">` to map `import "wms"` to `https://cdn.com/wms/index.js`.
+*   **Pros**:
+    *   **Runtime Updates**: You can update the Import Map JSON to point to a new version without rebuilding Core.
+    *   **Standard**: Uses native browser capabilities, no Webpack magic required.
+*   **Cons**:
+    *   **Maturity**: Tooling (like `vite-plugin-import-map`) is less mature than Module Federation.
+    *   **Native Plugins**: Still faces the same issue—if WMS imports a native plugin, Core must have it installed. Module Federation handles the "sharing" of these dependencies more automatically via its `shared` config.
+
 ## Conclusion
 
 For the scenario of **independent mono-repos** and **Docker-based composition**, **Module Federation** is the superior choice. It allows the infrastructure (Docker/Nginx) to define the application composition rather than the build tool (Webpack/Vite), enabling true independent lifecycles for Core, WMS, and ASRS.
