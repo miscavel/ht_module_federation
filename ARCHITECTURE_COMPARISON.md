@@ -70,22 +70,8 @@ We are building a system with the following components:
         *   **Composite**: Need to deploy 3 separate static sites (Core, WMS, ASRS), stitched via gateway (e.g. `/gateway/handy-terminal/wms/` -> WMS Container).
         *   **Network Latency**: Loading `remoteEntry.js` adds an initial network round-trip.
 
-### 4. Native Functionality (Capacitor)
-*   **NPM Approach**:
-    *   **Pros**:
-        *   **Direct Access**: WMS code can directly import `@capacitor/camera`.
-    *   **Cons**:
-        *   **Native Coupling**: If WMS adds a plugin, the Core Native App must be updated and re-submitted to App Stores.
-        *   **Diamond Dependency**: Risk of bundling multiple versions of Capacitor Core.
-*   **Module Federation**:
-    *   **Pros**:
-        *   **Clean Architecture**: Core exposes "Native Bridges" (e.g., `ScannerService`). WMS consumes these.
-        *   **Stability**: Core controls the hardware layer; Remotes cannot crash the native shell with incompatible plugins.
-    *   **Cons**:
-        *   **Abstraction Overhead**: You cannot just "import a plugin" in WMS. You must expose it from Core first.
 
-
-### 5. Special Case: The "Combinator App" Pattern (NPM Variant)
+### 4. Special Case: The "Combinator App" Pattern (NPM Variant)
 A common alternative proposal is to have specific "Shell Apps" for each combination (e.g., a "WMS Shell" that installs `core` and `wms` packages). While this achieves build-time composition, it fails to solve the maintenance overhead.
 
 | Feature | NPM "Combinator" Approach | Module Federation Approach |
@@ -99,7 +85,7 @@ A common alternative proposal is to have specific "Shell Apps" for each combinat
 1.  **The "Diamond Dependency" Hell**: If ASRS depends on WMS, and both depend on Core, you risk bundling two versions of Core if versions drift. This causes "Singleton" errors (e.g., React Hooks failures).
 2.  **The "Native Plugin" Trap**: If you have 3 different Combinator Apps, you have 3 different Native Projects (Android/iOS). Adding a camera plugin requires updating native code in 3 repositories. With Module Federation, you only have **one** Native App (Core).
 
-### 6. Concrete Scenarios
+### 5. Concrete Scenarios
 
 #### Scenario A: Critical Security Fix in Core
 *   **Context**: A vulnerability is found in the Login component in `Core`.
@@ -125,7 +111,7 @@ A common alternative proposal is to have specific "Shell Apps" for each combinat
     2.  `WMS` team simply calls `import { scan } from 'core/ScannerService'`.
     3.  No native code changes ever happen in the `WMS` repo.
 
-### 8. Strategy for Version Alignment (The "Singleton" Problem)
+### 7. Strategy for Version Alignment (The "Singleton" Problem)
 
 One of the biggest challenges in Module Federation is ensuring that shared libraries (like `react`, `@ionic/react`, or `react-router`) are compatible across different remotes. If Core uses Ionic v7 and WMS uses Ionic v6, the app might crash.
 
