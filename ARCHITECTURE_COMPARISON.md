@@ -30,13 +30,13 @@ We are building a system with the following components:
 
 ### 1. Ease and Separation of Versioning
 *   **NPM Approach**:
-    *   Since WMS is a dependency of Core, if WMS releases `v2.5.1`, you must update `package.json` in Core, run `npm install`, and cut a new release of Core (e.g., `v1.7.1`).
+    *   Since WMS is a dependency of Core, if WMS releases a new version (e.g. `v2.5.1`), you must update `package.json` in Core, run `npm install`, and cut a new release of Core (e.g., `v1.7.1`).
     *   This creates a "release train" bottleneck where Core must be released whenever any child module changes.
     *   It contradicts the goal of having WMS versioned alongside its backend in a separate mono-repo.
 *   **Module Federation**:
     *   Core `v1.7.0` is configured to load `remoteEntry.js` from a URL.
     *   You can deploy WMS `v2.5.1` to that URL (or update the Docker tag) without touching the Core codebase.
-    *   This perfectly aligns with the requirement: `ASRS - v2.7.0 (uses Core v1.7.0, WMS v2.5.1, and ASRS v2.7.0)`. You simply spin up those specific Docker containers, and they work together.
+    *   Example use case: `rr_oks - v2.7.0 (uses Core v1.7.0, WMS v2.5.1, and ASRS v2.7.0)`. You simply spin up those specific Docker containers, and they work together.
 
 ### 2. Ease and Separation of Development
 *   **NPM Approach**:
