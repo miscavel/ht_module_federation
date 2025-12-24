@@ -122,4 +122,8 @@ One of the biggest challenges in Module Federation is ensuring that shared libra
 
 ## Conclusion
 
-For the scenario of **independent mono-repos** and **Docker-based composition**, **Module Federation** is the superior choice. It allows the infrastructure (Docker/Nginx) to define the application composition rather than the build tool (Webpack/Vite), enabling true independent lifecycles for Core, WMS, and ASRS.
+While both approaches have trade-offs, the deciding factor is **Version Management**:
+1.  **Decoupled Lifecycles**: Module Federation architecture allows Core, WMS, and ASRS modules to be released and upgraded independent of each other. The NPM package approach means a minimum of 2 releases is required each time a module is updated (the "module"'s release and the "host app"'s release), and it may be tricky to resolve the version dependency due to the diamond dependency problem.
+2.  **Infrastructure Composition**: It allows the infrastructure (Docker/Nginx) to define the application composition rather than the build tool (Webpack/Vite). This aligns perfectly with the requirement to deploy different combinations (Core+WMS vs Core+ASRS vs Core+WMS+ASRS) without maintaining multiple build configurations.
+
+By accepting the complexity of runtime integration, we gain the agility of independent releases, which is critical for high-velocity teams working in separate repositories. 
