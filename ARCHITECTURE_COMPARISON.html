@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Architecture Comparison: Module Federation vs. NPM Packages</title>
+    <style>
+        body {
+            font-family: 'Calibri', 'Segoe UI', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        /* Shifted styles down one level */
+        h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            font-size: 2em; /* Explicit size to mimic H1 */
+        }
+        h3 {
+            color: #2980b9;
+            margin-top: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            font-size: 1.5em; /* Explicit size to mimic H2 */
+        }
+        h4 {
+            color: #16a085;
+            margin-top: 25px;
+            font-size: 1.17em; /* Explicit size to mimic H3 */
+        }
+        h5 {
+            color: #8e44ad;
+            margin-top: 20px;
+            font-size: 1em; /* Explicit size to mimic H4 */
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            color: #333;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: #c7254e;
+        }
+        pre {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        ul {
+            margin-bottom: 15px;
+        }
+        li {
+            margin-bottom: 5px;
+        }
+        .strong {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Architecture Comparison: Module Federation vs. NPM Packages</h2>
+
+    <h3>Context</h3>
+    <p>We are building a system with the following components:</p>
+    <ul>
+        <li><strong>Core</strong>: Host application, contains Capacitor native plugins, shared UI, and authentication. Stable lifecycle.</li>
+        <li><strong>WMS</strong>: Warehouse Management System. High velocity, sits in a mono-repo with its backend.</li>
+        <li><strong>ASRS</strong>: Robotics Control. High velocity, sits in a mono-repo, depends on Core and WMS.</li>
+    </ul>
+
+    <p><strong>Deployment Requirements:</strong></p>
+    <ul>
+        <li>Dynamic combinations: (Core + WMS), (Core + ASRS), (Core + WMS + ASRS).</li>
+        <li>Independent versioning: e.g., Run Core v1.7.0 with WMS v2.5.1 and ASRS v2.7.0</li>
+        <li>Infrastructure: Docker-based integration testing, Gateway-based production routing.</li>
+    </ul>
+
+    <hr>
+
+    <h3>Evaluation Summary</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Feature</th>
+                <th>Module Federation (Recommended)</th>
+                <th>NPM Package (Monolith)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Versioning</strong></td>
+                <td><strong>Decoupled</strong>. WMS can be released independently of Core.</td>
+                <td><strong>Coupled</strong>. Updating WMS requires rebuilding and releasing Core.</td>
+            </tr>
+            <tr>
+                <td><strong>Development</strong></td>
+                <td><strong>Isolated</strong>. Devs run WMS standalone or compose with Core at runtime.</td>
+                <td><strong>Linked</strong>. Requires <code>npm link</code> or local file references. Slower feedback loop.</td>
+            </tr>
+            <tr>
+                <td><strong>Deployment</strong></td>
+                <td><strong>Composite</strong>. Deploy artifacts (containers) independently.</td>
+                <td><strong>Atomic</strong>. One large bundle contains everything.</td>
+            </tr>
+            <tr>
+                <td><strong>Build Time</strong></td>
+                <td><strong>Fast (Parallel)</strong>. Building WMS does not require building Core.</td>
+                <td><strong>Slow (Sequential)</strong>. Core build time increases as sub-modules grow.</td>
+            </tr>
+            <tr>
+                <td><strong>Native Access</strong></td>
+                <td><strong>Via Host</strong>. Remotes access native features via exposed Core interfaces.</td>
+                <td><strong>Direct</strong>. Libraries import native plugins directly.</td>
+            </tr>
+            <tr>
+                <td><strong>Consistency</strong></td>
+                <td><strong>Runtime Check</strong>. Risk of version mismatch if not managed.</td>
+                <td><strong>Build-time Check</strong>. Guaranteed consistency, easier type safety.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <hr>
+
+    <h3>Detailed Analysis</h3>
+
+    <h4>1. Ease and Separation of Versioning</h4>
+    <ul>
+        <li><strong>NPM Approach</strong>:
+            <ul>
+                <li><strong>Pros</strong>:
+                    <ul>
+                        <li><strong>Deterministic</strong>: You know exactly what version of WMS is in Core at build time.</li>
+                        <li><strong>Auditability</strong>: <code>package-lock.json</code> captures the entire dependency tree.</li>
+                    </ul>
+                </li>
+                <li><strong>Cons</strong>:
+                    <ul>
+                        <li><strong>Release Train</strong>: Since WMS is a dependency of Core, if WMS releases <code>v2.5.1</code>, you must update <code>package.json</code> in Core, run <code>npm install</code>, and cut a new release of Core (e.g., <code>v1.7.1</code>).</li>
+                        <li><strong>Coupling</strong>: Core must be released whenever any child module changes, contradicting the goal of independent mono-repos.</li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+        <li><strong>Module Federation</strong>:
+            <ul>
+                <li><strong>Pros</strong>:
+                    <ul>
+                        <li><strong>Decoupled</strong>: Core <code>v1.7.0</code> loads <code>remoteEntry.js</code> from a URL. You can deploy WMS <code>v2.5.1</code> to that URL without touching Core.</li>
+                        <li><strong>Independent Velocity</strong>: WMS team can push hotfixes to production instantly.</li>
+                    </ul>
+                </li>
+                <li><strong>Cons</strong>:
+                    <ul>
+                        <li><strong>Runtime Risk</strong>: Compatibility across Core, WMS and ASRS modules are not caught during build time (may cause unexpected crash). Can be mitigated via Semantic Versioning.</li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+    </ul>
+
+    <h4>2. Ease and Separation of Development</h4>
+    <ul>
+        <li><strong>NPM Approach</strong>:
+            <ul>
+                <li><strong>Pros</strong>:
+                    <ul>
+                        <li><strong>Simplicity</strong>: Just run <code>npm install</code> and <code>npm start</code>.</li>
+                        <li><strong>Type Safety</strong>: TypeScript types are automatically resolved from <code>node_modules</code>.</li>
+                    </ul>
+                </li>
+                <li><strong>Cons</strong>:
+                    <ul>
+                        <li><strong>Slow Feedback</strong>: To test integration, developers often need to build the entire monolith.</li>
+                        <li><strong>Linking Pain</strong>: "Works on my machine" issues arise from symlinking local packages (<code>npm link</code>).</li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+        <li><strong>Module Federation</strong>:
+            <ul>
+                <li><strong>Pros</strong>:
+                    <ul>
+                        <li><strong>Isolation</strong>: WMS developers can run the WMS app in isolation (fast dev server).</li>
+                        <li><strong>Production Parity</strong>: To test integration, they run the Core host and point the remote modules env var to their local WMS port.</li>
+                    </ul>
+                </li>
+                <li><strong>Cons</strong>:
+                    <ul>
+                        <li><strong>Complexity</strong>: Requires running multiple dev servers to test integration.</li>
+                        <li><strong>Types</strong>: Sharing TypeScript types requires extra tooling (e.g., a shared typing library <code>@core/types</code>).</li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+    </ul>
+
+    <h4>3. Ease of Deployment as Single Application</h4>
+    <ul>
+        <li><strong>NPM Approach</strong>:
+            <ul>
+                <li><strong>Pros</strong>:
+                    <ul>
+                        <li><strong>Atomic Artifact</strong>: You get one set of static assets (HTML/JS/CSS), single deployment.</li>
+                    </ul>
+                </li>
+                <li><strong>Cons</strong>:
+                    <ul>
+                        <li><strong>Monolithic</strong>: You cannot easily deploy "Core + WMS" and "Core + ASRS" separately without maintaining two different build configurations.</li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+        <li><strong>Module Federation</strong>:
+            <ul>
+                <li><strong>Cons</strong>:
+                    <ul>
+                        <li><strong>Composite</strong>: Need to deploy 3 separate static sites (Core, WMS, ASRS), stitched via gateway (e.g. <code>/gateway/handy-terminal/wms/</code> -> WMS Container).</li>
+                        <li><strong>Network Latency</strong>: Loading <code>remoteEntry.js</code> adds an initial network round-trip.</li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+    </ul>
+
+    <h4>4. Alternative Solution: The "Combinator App" Pattern (NPM Variant)</h4>
+    <p>A common alternative proposal is to have specific "Shell Apps" for each combination (e.g., a "WMS Shell" that installs <code>core</code> and <code>wms</code> packages, "Full Shell" that installs <code>core</code>, <code>wms</code> and <code>asrs</code> packages). While this achieves build-time composition, it fails to solve the maintenance overhead.</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Feature</th>
+                <th>NPM "Combinator" Approach</th>
+                <th>Module Federation Approach</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Update Core Logic</strong></td>
+                <td>Must rebuild & redeploy <strong>ALL</strong> Combinator apps (Core App, WMS App, ASRS App).</td>
+                <td>Deploy Core once. All apps update instantly.</td>
+            </tr>
+            <tr>
+                <td><strong>Native Plugins</strong></td>
+                <td>Must maintain Android/iOS projects in <strong>ALL</strong> repos.</td>
+                <td>Maintain Android/iOS project <strong>ONLY</strong> in Core.</td>
+            </tr>
+            <tr>
+                <td><strong>Dependency Conflict</strong></td>
+                <td>High risk of duplicate libraries (Diamond Dependency).</td>
+                <td>Runtime negotiation (Shared Scope).</td>
+            </tr>
+            <tr>
+                <td><strong>Build Time</strong></td>
+                <td>Slower (bundles everything).</td>
+                <td>Faster (bundles only local code).</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p><strong>Why "Combinator" fails for this scenario:</strong></p>
+    <ol>
+        <li><strong>The "Diamond Dependency" Hell</strong>: If ASRS depends on WMS, and both depend on Core, you risk bundling two versions of Core if versions drift. This causes "Singleton" errors (e.g., React Hooks failures).</li>
+        <li><strong>The "Native Plugin" Trap</strong>: If you have 3 different Combinator Apps, you have 3 different Native Projects (Android/iOS). Adding a new plugin requires updating native code in 3 repositories. With Module Federation, you only have <strong>one</strong> Native App (Core).</li>
+    </ol>
+
+    <h4>5. Strategy for Libraries Version Alignment</h4>
+    <p>One of the biggest challenges in Module Federation is ensuring that shared libraries (like <code>react</code>, <code>@ionic/react</code>, or <code>react-router</code>) are compatible across different remotes. If Core uses Ionic v7 and WMS uses Ionic v6, the app might crash.</p>
+
+    <h5>The Problem</h5>
+    <ul>
+        <li><strong>Singleton Requirement</strong>: Libraries like <code>react</code> and <code>@ionic/react</code> rely on global state. If two versions are loaded simultaneously, you get errors like "Hooks can only be called inside the body of a function component".</li>
+        <li><strong>Version Drift</strong>: Over time, the WMS team might upgrade their dependencies while the Core team stays on an older version.</li>
+    </ul>
+
+    <h5>The Solution Strategy</h5>
+    <ol>
+        <li><strong>Strict Shared Configuration</strong>:<br>
+            In <code>webpack.config.ts</code>, use the <code>shared</code> configuration to enforce singleton behavior.
+            <pre><code>shared: {
+  'react': { singleton: true, requiredVersion: '^18.2.0' },
+  'react-dom': { singleton: true, requiredVersion: '^18.2.0' },
+  '@ionic/react': { singleton: true, requiredVersion: '^7.0.0' }
+}</code></pre>
+            <ul>
+                <li><code>singleton: true</code>: Ensures only one copy of the library is ever loaded (usually the Host's copy).</li>
+                <li><code>requiredVersion</code>: If the Remote's version is incompatible with the Host's, the Remote will fail to load (fail-fast) or warn in the console.</li>
+            </ul>
+        </li>
+        <li><strong>The "Core-First" Upgrade Policy</strong>:
+            <ul>
+                <li>Since Core is the Host, it dictates the "Platform Version".</li>
+                <li><strong>Rule</strong>: Core upgrades major versions (e.g., Ionic 7 -> 8) <em>first</em>.</li>
+                <li>Remotes (WMS/ASRS) must support the version provided by Core. They can be <em>behind</em> (if the library is backward compatible) but rarely <em>ahead</em> for singleton libraries.</li>
+            </ul>
+        </li>
+        <li><strong>Shared "Contracts" Package</strong>:
+            <ul>
+                <li>Create a small NPM package (e.g., <code>@core/types</code>) that exports only TypeScript interfaces and version constants.</li>
+                <li>Both Core and WMS install this package to ensure they agree on the data structures passed between them.</li>
+            </ul>
+        </li>
+        <li><strong>Runtime Version Check</strong>:
+            <ul>
+                <li>Core can expose a <code>getVersion()</code> function.</li>
+                <li>WMS can check <code>if (Core.getVersion() < 2.0) { showIncompatibleMessage() }</code> on startup.</li>
+            </ul>
+        </li>
+    </ol>
+
+    <hr>
+
+    <h3>Conclusion</h3>
+    <p>While both approaches have trade-offs, <strong>Module Federation</strong> approach looks to be the more promising one with the deciding factor being <strong>Version Management</strong>:</p>
+    <ol>
+        <li><strong>Decoupled Lifecycles</strong>: Module Federation architecture allows Core, WMS, and ASRS modules to be released and upgraded independent of each other. The NPM package approach means a minimum of 2 releases is required each time a module is updated (the "module"'s release and the "host app"'s release), and it may be tricky to resolve the version dependency due to the diamond dependency problem.</li>
+        <li><strong>Infrastructure Composition</strong>: It allows the infrastructure (Docker/Nginx) to define the application composition rather than the build tool (Webpack/Vite). This aligns with the requirement to deploy different combinations (Core+WMS vs Core+ASRS vs Core+WMS+ASRS) without maintaining multiple build configurations.</li>
+    </ol>
+    <p>By accepting the complexity of runtime integration, we gain the agility of independent releases, which is critical for high-velocity teams working in separate repositories.</p>
+
+</body>
+</html>
