@@ -107,6 +107,41 @@ A common alternative proposal is to have specific "Shell Apps" for each combinat
     2.  `WMS` team simply calls `import { scan } from 'core/ScannerService'`.
     3.  No native code changes ever happen in the `WMS` repo.
 
+### 8. Strategy for Version Alignment (The "Singleton" Problem)
+
+One of the biggest challenges in Module Federation is ensuring that shared libraries (like `react`, `@ionic/react`, or `react-router`) are compatible across different remotes. If Core uses Ionic v7 and WMS uses Ionic v6, the app might crash.
+
+#### The Problem
+*   **Singleton Requirement**: Libraries like `react` and `@ionic/react` rely on global state. If two versions are loaded simultaneously, you get errors like "Hooks can only be called inside the body of a function component".
+*   **Version Drift**: Over time, the WMS team might upgrade their dependencies while the Core team stays on an older version.
+
+#### The Solution Strategy
+
+1.  **Strict Shared Configuration**:
+    In `webpack.config.ts`, use the `shared` configuration to enforce singleton behavior.
+    ```typescript
+    shared: {
+      'react': { singleton: true, requiredVersion: '^18.2.0' },
+      'react-dom': { singleton: true, requiredVersion: '^18.2.0' },
+      '@ionic/react': { singleton: true, requiredVersion: '^7.0.0' }
+    }
+    ```
+    *   `singleton: true`: Ensures only one copy of the library is ever loaded (usually the Host's copy).
+    *   `requiredVersion`: If the Remote's version is incompatible with the Host's, the Remote will fail to load (fail-fast) or warn in the console.
+
+2.  **The "Core-First" Upgrade Policy**:
+    *   Since Core is the Host, it dictates the "Platform Version".
+    *   **Rule**: Core upgrades major versions (e.g., Ionic 7 -> 8) *first*.
+    *   Remotes (WMS/ASRS) must support the version provided by Core. They can be *behind* (if the library is backward compatible) but rarely *ahead* for singleton libraries.
+
+3.  **Shared "Contracts" Package**:
+    *   Create a small NPM package (e.g., `@company/contracts`) that exports only TypeScript interfaces and version constants.
+    *   Both Core and WMS install this package to ensure they agree on the data structures passed between them.
+
+4.  **Runtime Version Check (Optional)**:
+    *   Core can expose a `getVersion()` function.
+    *   WMS can check `if (Core.getVersion() < 2.0) { showIncompatibleMessage() }` on startup.
+
 ## Conclusion
 
 For the scenario of **independent mono-repos** and **Docker-based composition**, **Module Federation** is the superior choice. It allows the infrastructure (Docker/Nginx) to define the application composition rather than the build tool (Webpack/Vite), enabling true independent lifecycles for Core, WMS, and ASRS.
