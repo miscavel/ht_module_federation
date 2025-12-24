@@ -85,7 +85,7 @@ A common alternative proposal is to have specific "Shell Apps" for each combinat
 1.  **The "Diamond Dependency" Hell**: If ASRS depends on WMS, and both depend on Core, you risk bundling two versions of Core if versions drift. This causes "Singleton" errors (e.g., React Hooks failures).
 2.  **The "Native Plugin" Trap**: If you have 3 different Combinator Apps, you have 3 different Native Projects (Android/iOS). Adding a new plugin requires updating native code in 3 repositories. With Module Federation, you only have **one** Native App (Core).
 
-### 5. Strategy for Libraries Version Alignment (The "Singleton" Problem)
+### 5. Strategy for Libraries Version Alignment
 
 One of the biggest challenges in Module Federation is ensuring that shared libraries (like `react`, `@ionic/react`, or `react-router`) are compatible across different remotes. If Core uses Ionic v7 and WMS uses Ionic v6, the app might crash.
 
@@ -113,10 +113,10 @@ One of the biggest challenges in Module Federation is ensuring that shared libra
     *   Remotes (WMS/ASRS) must support the version provided by Core. They can be *behind* (if the library is backward compatible) but rarely *ahead* for singleton libraries.
 
 3.  **Shared "Contracts" Package**:
-    *   Create a small NPM package (e.g., `@company/contracts`) that exports only TypeScript interfaces and version constants.
+    *   Create a small NPM package (e.g., `@core/types`) that exports only TypeScript interfaces and version constants.
     *   Both Core and WMS install this package to ensure they agree on the data structures passed between them.
 
-4.  **Runtime Version Check (Optional)**:
+4.  **Runtime Version Check**:
     *   Core can expose a `getVersion()` function.
     *   WMS can check `if (Core.getVersion() < 2.0) { showIncompatibleMessage() }` on startup.
 
