@@ -61,10 +61,10 @@ We are building a system with the following components:
 
 ### 4. Native Functionality (Capacitor)
 *   **NPM Approach**:
-    *   Easier initially. WMS code can directly import `@capacitor/camera`.
+    *   Easier initially. WMS code can directly import `@capacitor/plugin` directly.
 *   **Module Federation**:
     *   Remotes (WMS) should not directly depend on native plugins to avoid version conflicts and "multiple React instances" issues.
-    *   **Solution**: Core exposes "Native Bridges" (e.g., `SharedNotification`, `CameraService`). WMS consumes these.
+    *   **Solution**: Core exposes "Native Bridges" (e.g. `ScannerPlugin`). WMS consumes these.
     *   **Benefit**: This enforces a clean architecture where Core controls the hardware, and feature modules just request actions.
 
 ### 5. Special Case: The "Combinator App" Pattern (NPM Variant)
