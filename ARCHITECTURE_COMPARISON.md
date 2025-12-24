@@ -71,8 +71,8 @@ We are building a system with the following components:
         *   **Network Latency**: Loading `remoteEntry.js` adds an initial network round-trip.
 
 
-### 4. Special Case: The "Combinator App" Pattern (NPM Variant)
-A common alternative proposal is to have specific "Shell Apps" for each combination (e.g., a "WMS Shell" that installs `core` and `wms` packages). While this achieves build-time composition, it fails to solve the maintenance overhead.
+### 4. Alternative Solution: The "Combinator App" Pattern (NPM Variant)
+A common alternative proposal is to have specific "Shell Apps" for each combination (e.g., a "WMS Shell" that installs `core` and `wms` packages, "Full Shell" that installs `core`, `wms` and `asrs` packages). While this achieves build-time composition, it fails to solve the maintenance overhead.
 
 | Feature | NPM "Combinator" Approach | Module Federation Approach |
 | :--- | :--- | :--- |
@@ -83,7 +83,7 @@ A common alternative proposal is to have specific "Shell Apps" for each combinat
 
 **Why "Combinator" fails for this scenario:**
 1.  **The "Diamond Dependency" Hell**: If ASRS depends on WMS, and both depend on Core, you risk bundling two versions of Core if versions drift. This causes "Singleton" errors (e.g., React Hooks failures).
-2.  **The "Native Plugin" Trap**: If you have 3 different Combinator Apps, you have 3 different Native Projects (Android/iOS). Adding a camera plugin requires updating native code in 3 repositories. With Module Federation, you only have **one** Native App (Core).
+2.  **The "Native Plugin" Trap**: If you have 3 different Combinator Apps, you have 3 different Native Projects (Android/iOS). Adding a new plugin requires updating native code in 3 repositories. With Module Federation, you only have **one** Native App (Core).
 
 ### 5. Concrete Scenarios
 
@@ -111,7 +111,7 @@ A common alternative proposal is to have specific "Shell Apps" for each combinat
     2.  `WMS` team simply calls `import { scan } from 'core/ScannerService'`.
     3.  No native code changes ever happen in the `WMS` repo.
 
-### 7. Strategy for Version Alignment (The "Singleton" Problem)
+### 6. Strategy for Version Alignment (The "Singleton" Problem)
 
 One of the biggest challenges in Module Federation is ensuring that shared libraries (like `react`, `@ionic/react`, or `react-router`) are compatible across different remotes. If Core uses Ionic v7 and WMS uses Ionic v6, the app might crash.
 
