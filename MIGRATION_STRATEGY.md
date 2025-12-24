@@ -84,3 +84,52 @@ Assign one developer as the "Migration Warden".
 3.  **Week 4-6**: Port WMS to New Repo. **Reject** new WMS features in Old Repo.
 4.  **Week 7**: **Cutover**. WMS is now live from New Repo. Old WMS code is deleted.
 5.  **Week 8**: Repeat for ASRS.
+
+---
+
+## Alternative Strategy: "Refactor-First" (Modular Monolith)
+
+You asked about **refactoring inside the old project first** before splitting the repositories. This is a valid, often safer approach, especially if the current codebase has high coupling (spaghetti code).
+
+### The Concept
+Instead of creating new repositories immediately, you reorganize the existing monolith into strict "Domains" (folders) that mimic the future repositories.
+
+### Pros
+1.  **IDE Power**: Refactoring tools (Rename, Move File, Find Usages) work perfectly across the entire codebase.
+2.  **Type Safety**: TypeScript checks everything instantly. No need to publish `@core/types` packages yet.
+3.  **Low Infra Overhead**: You don't need to set up 3 CI pipelines or Webpack Module Federation configs until the code is ready.
+
+### Cons
+1.  **Delayed Value**: You don't get independent deployments until the *very end*.
+2.  **"Hidden Coupling" Risk**: It is very easy to accidentally import a file from `Core` into `WMS` that works in a monolith (because it's all one bundle) but will **crash** in Module Federation (e.g., importing a React Context that relies on a specific Provider being up the tree).
+
+### Recommendation: The "Strict Boundary" Rule
+If you choose this path, you **MUST** enforce boundaries using tooling, or you will fail when you try to split.
+
+1.  **Create Structure**:
+    ```text
+    /src
+      /Core  (Can only import libraries)
+      /WMS   (Can import Core, but NOT ASRS)
+      /ASRS  (Can import Core, but NOT WMS)
+    ```
+2.  **Enforce with ESLint**:
+    Use `eslint-plugin-boundaries` or `dependency-cruiser` to fail the build if `WMS` imports `ASRS`.
+    ```json
+    // .eslintrc.json example
+    "rules": {
+      "import/no-restricted-paths": [
+        "error",
+        {
+          "zones": [
+            { "target": "./src/WMS", "from": "./src/ASRS" },
+            { "target": "./src/Core", "from": "./src/WMS" } // Core shouldn't depend on features
+          ]
+        }
+      ]
+    }
+    ```
+
+### Verdict
+*   **Choose "Refactor-First" if**: Your current codebase is highly coupled (spaghetti). Splitting it now would result in 1,000 build errors.
+*   **Choose "Strangler Fig" (Repo Split) if**: Your codebase is already reasonably modular, and your main pain point is *deployment velocity*.
