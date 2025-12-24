@@ -1,0 +1,159 @@
+# Refactor-First Strategy: The Modular Monolith
+
+## Executive Summary
+This strategy focuses on cleaning up the existing codebase *before* introducing the complexity of Module Federation. The goal is to transform a "Spaghetti Monolith" into a "Modular Monolith" where boundaries are strictly enforced by tooling.
+
+**Why this approach?**
+*   **Safety**: You don't break the build. You fix dependencies while the app is still one cohesive unit.
+*   **Velocity**: Refactoring is 10x faster because your IDE (VS Code) can trace references, rename symbols, and move files across the entire project instantly.
+*   **Validation**: You can prove that "WMS" is independent before you actually move it.
+
+---
+
+## Phase 1: The Logical Split (In-Place)
+
+Your first goal is to organize the code into "Domains" that mirror your future repositories.
+
+### 1. Restructure Folders
+Move files from technical layers (components, services, utils) to domain layers.
+
+**Current (Likely):**
+```text
+/src
+  /components
+    /Button.tsx
+    /WmsGrid.tsx
+  /services
+    /AuthService.ts
+    /InventoryService.ts
+```
+
+**Target Structure:**
+```text
+/src
+  /Core       (Future Host Repo)
+    /components (Button.tsx)
+    /services   (AuthService.ts)
+  /WMS        (Future Remote Repo)
+    /components (WmsGrid.tsx)
+    /services   (InventoryService.ts)
+  /ASRS       (Future Remote Repo)
+  /Shared     (Code shared between WMS and ASRS, e.g. Types)
+```
+
+### 2. The Golden Rules of Dependency
+You must enforce these rules to ensure the modules can eventually be split:
+
+1.  **Core** cannot import from **WMS** or **ASRS**. (Host shouldn't depend on Remotes).
+2.  **WMS** cannot import from **ASRS**. (Remotes should be siblings, not parents).
+3.  **WMS** *can* import from **Core** (for Auth/Layout) and **Shared**.
+4.  **Shared** cannot import from anywhere (Leaf node).
+
+---
+
+## Recommended Tools
+
+### 1. Visualization & Analysis: `madge`
+Before you start moving files, you need to see the mess. `madge` is excellent for generating visual graphs of your dependencies and finding circular references.
+
+*   **Install**: `npm install -g madge`
+*   **Usage**:
+    *   **Find Circular Dependencies**: `madge --circular ./src`
+    *   **Visualize WMS Dependencies**: `madge --image graph.png ./src/WMS`
+    *   **Check what WMS depends on**: `madge --summary ./src/WMS`
+
+### 2. Strict Enforcement: `dependency-cruiser`
+This is the heavy lifter. It allows you to write rules in JSON/JS that fail the build if a forbidden import occurs.
+
+*   **Install**: `npm install --save-dev dependency-cruiser`
+*   **Configuration** (`.dependency-cruiser.js`):
+    ```javascript
+    module.exports = {
+      forbidden: [
+        {
+          name: 'no-wms-to-asrs',
+          comment: 'WMS cannot depend on ASRS',
+          from: { path: '^src/WMS' },
+          to: { path: '^src/ASRS' }
+        },
+        {
+          name: 'no-core-to-modules',
+          comment: 'Core cannot depend on Feature Modules',
+          from: { path: '^src/Core' },
+          to: { path: '^src/(WMS|ASRS)' }
+        }
+      ]
+    };
+    ```
+*   **Run it**: `npx depcruise --validate .dependency-cruiser.js src`
+
+### 3. Linter Enforcement: `eslint-plugin-boundaries`
+For real-time feedback in VS Code (red squiggly lines), use this ESLint plugin.
+
+*   **Install**: `npm install --save-dev eslint-plugin-boundaries`
+*   **Config**:
+    ```json
+    "settings": {
+      "boundaries/elements": [
+        { "type": "Core", "pattern": "src/Core" },
+        { "type": "WMS", "pattern": "src/WMS" },
+        { "type": "ASRS", "pattern": "src/ASRS" }
+      ]
+    },
+    "rules": {
+      "boundaries/element-types": [
+        2,
+        {
+          "default": "disallow",
+          "rules": [
+            { "from": "WMS", "allow": ["Core"] },
+            { "from": "ASRS", "allow": ["Core"] },
+            { "from": "Core", "allow": [] } 
+          ]
+        }
+      ]
+    }
+    ```
+
+---
+
+## How to Find & Break Dependency Links
+
+### Step 1: The "Barrel" File Check
+Look for `index.ts` files that export everything.
+*   **Problem**: If `Core/index.ts` exports `AuthService` AND `SomeHelper`, and `WMS` imports `SomeHelper`, it might accidentally pull in `AuthService` which might pull in other things.
+*   **Fix**: Import directly from files (`import { X } from '@core/services/X'`) or split barrel files by domain.
+
+### Step 2: The "Global State" Trap
+Look for Redux slices or React Contexts.
+*   **Problem**: `WMS` dispatches an action defined in `ASRS`.
+*   **Fix**:
+    *   Move the shared state to `Core` (if global).
+    *   Or, use **Event Bus** pattern (Custom Events) if modules need to communicate loosely without importing each other's code.
+
+### Step 3: The "Utils" Drawer
+Everyone dumps code into `src/utils`.
+*   **Problem**: `date-formatter.ts` is used by everyone.
+*   **Fix**: Move generic utils to `src/Shared/utils`. If a util is specific to WMS logic, move it to `src/WMS/utils`.
+
+### Step 4: Circular Dependencies
+Use `madge --circular` to find them.
+*   **Scenario**: `User` (Core) has a property `currentTask` (WMS). `Task` (WMS) has a property `assignedUser` (Core).
+*   **Fix**: Create an interface in `Shared` or `Core`.
+    *   `Core` defines `interface IUser { ... }`.
+    *   `WMS` imports `IUser`.
+    *   `Core` does *not* import `Task` class, but maybe a generic `ITask` interface if absolutely needed.
+
+---
+
+## Phase 2: The Physical Split (Migration)
+
+Once `dependency-cruiser` reports **zero violations**:
+
+1.  **Create New Repo** (e.g., `ht-wms`).
+2.  **Copy** the `src/WMS` folder to `src` in the new repo.
+3.  **Copy** the `src/Shared` folder (or publish it as an NPM package).
+4.  **Setup Module Federation** in the new repo to expose the components.
+5.  **Delete** `src/WMS` from the Old Repo and replace it with a Module Federation Remote import.
+
+This ensures that when you finally split, the code is guaranteed to work in isolation.
