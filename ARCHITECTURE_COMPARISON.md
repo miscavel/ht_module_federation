@@ -41,7 +41,7 @@ We are building a system with the following components:
         *   **Decoupled**: Core `v1.7.0` loads `remoteEntry.js` from a URL. You can deploy WMS `v2.5.1` to that URL without touching Core.
         *   **Independent Velocity**: WMS team can push hotfixes to production instantly.
     *   **Cons**:
-        *   **Runtime Risk**: If WMS pushes a breaking change, Core might crash at runtime (mitigated by Semantic Versioning).
+        *   **Runtime Risk**: Compatibility across Core, WMS and ASRS modules are not caught during build time (may cause unexpected crash). Can be mitigated via Semantic Versioning
 
 ### 2. Ease and Separation of Development
 *   **NPM Approach**:
@@ -54,25 +54,21 @@ We are building a system with the following components:
 *   **Module Federation**:
     *   **Pros**:
         *   **Isolation**: WMS developers can run the WMS app in isolation (fast dev server).
-        *   **Production Parity**: To test integration, they run the Core host and point the `VITE_WMS_REMOTE` env var to their local WMS port.
+        *   **Production Parity**: To test integration, they run the Core host and point the remote modules env var to their local WMS port.
     *   **Cons**:
         *   **Complexity**: Requires running multiple dev servers to test integration.
-        *   **Types**: Sharing TypeScript types requires extra tooling (e.g., `@module-federation/typescript`).
+        *   **Types**: Sharing TypeScript types requires extra tooling (e.g., a shared typing library `@core/types`).
 
 ### 3. Ease of Deployment as Single Application
 *   **NPM Approach**:
     *   **Pros**:
-        *   **Atomic Artifact**: You get one set of static assets (HTML/JS/CSS). Easy to put on an S3 bucket.
-        *   **Simple Infra**: No need for complex CORS or Gateway routing.
+        *   **Atomic Artifact**: You get one set of static assets (HTML/JS/CSS), single deployment
     *   **Cons**:
         *   **Monolithic**: You cannot easily deploy "Core + WMS" and "Core + ASRS" separately without maintaining two different build configurations.
 *   **Module Federation**:
-    *   **Pros**:
-        *   **Composite**: You deploy 3 separate static sites (Core, WMS, ASRS).
-        *   **Gateway Composition**: An Nginx Gateway stitches them together (`/gateway/wms/` -> WMS Container).
     *   **Cons**:
+        *   **Composite**: Need to deploy 3 separate static sites (Core, WMS, ASRS), stitched via gateway (e.g. `/gateway/handy-terminal/wms/` -> WMS Container).
         *   **Network Latency**: Loading `remoteEntry.js` adds an initial network round-trip.
-        *   **Infra Complexity**: Requires an API Gateway or Reverse Proxy to handle routing and CORS correctly.
 
 ### 4. Native Functionality (Capacitor)
 *   **NPM Approach**:
