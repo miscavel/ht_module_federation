@@ -30,42 +30,64 @@ We are building a system with the following components:
 
 ### 1. Ease and Separation of Versioning
 *   **NPM Approach**:
-    *   Since WMS is a dependency of Core, if WMS releases a new version (e.g. `v2.5.1`), you must update `package.json` in Core, run `npm install`, and cut a new release of Core (e.g., `v1.7.1`).
-    *   This creates a "release train" bottleneck where Core must be released whenever any child module changes.
-    *   It contradicts the goal of having WMS versioned alongside its backend in a separate mono-repo.
+    *   **Pros**:
+        *   **Deterministic**: You know exactly what version of WMS is in Core at build time.
+        *   **Auditability**: `package-lock.json` captures the entire dependency tree.
+    *   **Cons**:
+        *   **Release Train**: Since WMS is a dependency of Core, if WMS releases `v2.5.1`, you must update `package.json` in Core, run `npm install`, and cut a new release of Core (e.g., `v1.7.1`).
+        *   **Coupling**: Core must be released whenever any child module changes, contradicting the goal of independent mono-repos.
 *   **Module Federation**:
-    *   Core `v1.7.0` is configured to load `remoteEntry.js` from a URL.
-    *   You can deploy WMS `v2.5.1` to that URL (or update the Docker tag) without touching the Core codebase.
-    *   Example use case: `rr_oks - v2.7.0 (uses Core v1.7.0, WMS v2.5.1, and ASRS v2.7.0)`. You simply spin up those specific Docker containers, and they work together.
+    *   **Pros**:
+        *   **Decoupled**: Core `v1.7.0` loads `remoteEntry.js` from a URL. You can deploy WMS `v2.5.1` to that URL without touching Core.
+        *   **Independent Velocity**: WMS team can push hotfixes to production instantly.
+    *   **Cons**:
+        *   **Runtime Risk**: If WMS pushes a breaking change, Core might crash at runtime (mitigated by Semantic Versioning).
 
 ### 2. Ease and Separation of Development
 *   **NPM Approach**:
-    *   To test integration, developers often need to build the entire monolith.
-    *   "Works on my machine" issues arise from symlinking local packages (`npm link`).
+    *   **Pros**:
+        *   **Simplicity**: Just run `npm install` and `npm start`.
+        *   **Type Safety**: TypeScript types are automatically resolved from `node_modules`.
+    *   **Cons**:
+        *   **Slow Feedback**: To test integration, developers often need to build the entire monolith.
+        *   **Linking Pain**: "Works on my machine" issues arise from symlinking local packages (`npm link`).
 *   **Module Federation**:
-    *   WMS developers can run the WMS app in isolation (fast dev server).
-    *   To test integration, they run the Core host and point the modules remotes env var to their local WMS port.
-    *   This mirrors the production Docker setup locally, reducing "it works locally but fails in prod" scenarios.
+    *   **Pros**:
+        *   **Isolation**: WMS developers can run the WMS app in isolation (fast dev server).
+        *   **Production Parity**: To test integration, they run the Core host and point the `VITE_WMS_REMOTE` env var to their local WMS port.
+    *   **Cons**:
+        *   **Complexity**: Requires running multiple dev servers to test integration.
+        *   **Types**: Sharing TypeScript types requires extra tooling (e.g., `@module-federation/typescript`).
 
 ### 3. Ease of Deployment as Single Application
 *   **NPM Approach**:
-    *   **Pros**: You get one set of static assets (HTML/JS/CSS). Easy to manage deployment
-    *   **Cons**: You cannot easily deploy "Core + WMS" and "Core + ASRS" separately without maintaining two different build configurations (feature flags) or building two separate apps.
+    *   **Pros**:
+        *   **Atomic Artifact**: You get one set of static assets (HTML/JS/CSS). Easy to put on an S3 bucket.
+        *   **Simple Infra**: No need for complex CORS or Gateway routing.
+    *   **Cons**:
+        *   **Monolithic**: You cannot easily deploy "Core + WMS" and "Core + ASRS" separately without maintaining two different build configurations.
 *   **Module Federation**:
-    *   **Pros**: You deploy 3 separate static sites (Core, WMS, ASRS).
-    *   **Gateway Composition**: An Nginx Gateway (or Docker Compose) stitches them together.
-        *   `gateway/handy-terminal/core/` -> Core Container
-        *   `gateway/handy-terminal/wms/` -> WMS Container
-        *   `gateway/handy-terminal/asrs/` -> ASRS Container
-    *   This allows you to "compose" the application at the infrastructure level. To remove ASRS, you just stop the ASRS container and remove the route; Core handles the missing remote gracefully (as implemented with `catch` blocks).
+    *   **Pros**:
+        *   **Composite**: You deploy 3 separate static sites (Core, WMS, ASRS).
+        *   **Gateway Composition**: An Nginx Gateway stitches them together (`/gateway/wms/` -> WMS Container).
+    *   **Cons**:
+        *   **Network Latency**: Loading `remoteEntry.js` adds an initial network round-trip.
+        *   **Infra Complexity**: Requires an API Gateway or Reverse Proxy to handle routing and CORS correctly.
 
 ### 4. Native Functionality (Capacitor)
 *   **NPM Approach**:
-    *   Easier initially. WMS code can directly import `@capacitor/plugin` directly.
+    *   **Pros**:
+        *   **Direct Access**: WMS code can directly import `@capacitor/camera`.
+    *   **Cons**:
+        *   **Native Coupling**: If WMS adds a plugin, the Core Native App must be updated and re-submitted to App Stores.
+        *   **Diamond Dependency**: Risk of bundling multiple versions of Capacitor Core.
 *   **Module Federation**:
-    *   Remotes (WMS) should not directly depend on native plugins to avoid version conflicts and "multiple React instances" issues.
-    *   **Solution**: Core exposes "Native Bridges" (e.g. `ScannerPlugin`). WMS consumes these.
-    *   **Benefit**: This enforces a clean architecture where Core controls the hardware, and feature modules just request actions.
+    *   **Pros**:
+        *   **Clean Architecture**: Core exposes "Native Bridges" (e.g., `ScannerService`). WMS consumes these.
+        *   **Stability**: Core controls the hardware layer; Remotes cannot crash the native shell with incompatible plugins.
+    *   **Cons**:
+        *   **Abstraction Overhead**: You cannot just "import a plugin" in WMS. You must expose it from Core first.
+
 
 ### 5. Special Case: The "Combinator App" Pattern (NPM Variant)
 A common alternative proposal is to have specific "Shell Apps" for each combination (e.g., a "WMS Shell" that installs `core` and `wms` packages). While this achieves build-time composition, it fails to solve the maintenance overhead.
