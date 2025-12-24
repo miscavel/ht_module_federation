@@ -85,33 +85,7 @@ A common alternative proposal is to have specific "Shell Apps" for each combinat
 1.  **The "Diamond Dependency" Hell**: If ASRS depends on WMS, and both depend on Core, you risk bundling two versions of Core if versions drift. This causes "Singleton" errors (e.g., React Hooks failures).
 2.  **The "Native Plugin" Trap**: If you have 3 different Combinator Apps, you have 3 different Native Projects (Android/iOS). Adding a new plugin requires updating native code in 3 repositories. With Module Federation, you only have **one** Native App (Core).
 
-### 5. Concrete Scenarios
-
-#### Scenario A: Critical Security Fix in Core
-*   **Context**: A vulnerability is found in the Login component in `Core`.
-*   **NPM Approach**:
-    1.  Fix bug in `Core` repo -> Release `Core v1.7.2`.
-    2.  Go to `WMS` repo -> Update `package.json` -> `npm install` -> Rebuild -> Redeploy WMS App.
-    3.  Go to `ASRS` repo -> Update `package.json` -> `npm install` -> Rebuild -> Redeploy ASRS App.
-    *   *Result*: 3 deployments required. Risk of ASRS team forgetting to update.
-*   **Module Federation**:
-    1.  Fix bug in `Core` repo -> Release `Core v1.7.2` container.
-    2.  Restart `Core` container.
-    *   *Result*: WMS and ASRS users immediately see the fixed Login screen. 1 deployment required.
-
-#### Scenario B: Adding a Native Barcode Scanner
-*   **Context**: WMS needs to scan QR codes.
-*   **NPM Approach**:
-    1.  Install `@capacitor/barcode-scanner` in `WMS` repo.
-    2.  **Problem**: The WMS web code runs inside the *Core* Native App shell. If the Core Native App hasn't added the Java/Swift code for the scanner, the app crashes.
-    3.  You must update the `Core` repo's `android/` folder to include the plugin.
-    4.  If you have a separate "WMS Combinator App", you must update *its* `android/` folder too.
-*   **Module Federation**:
-    1.  Update `Core` repo: Install plugin, update `android/` folder, expose `ScannerService`.
-    2.  `WMS` team simply calls `import { scan } from 'core/ScannerService'`.
-    3.  No native code changes ever happen in the `WMS` repo.
-
-### 6. Strategy for Version Alignment (The "Singleton" Problem)
+### 5. Strategy for Libraries Version Alignment (The "Singleton" Problem)
 
 One of the biggest challenges in Module Federation is ensuring that shared libraries (like `react`, `@ionic/react`, or `react-router`) are compatible across different remotes. If Core uses Ionic v7 and WMS uses Ionic v6, the app might crash.
 
