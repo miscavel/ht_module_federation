@@ -46,6 +46,34 @@ If you are building a native app, "Page Reloads" are fine, but you need to ensur
 *   **Solution**: The "Core" app acts as the Native Shell. It loads WMS UI via a WebView.
 *   **Requirement**: You must inject the Capacitor JS bridge into the WMS UI index.html. This is standard practice for "Hybrid" apps.
 
+### How "Multi-SPA" works in a Single Mobile App
+You might worry that "3 websites" means "3 apps". It does not. In the Capacitor world, this is called the **"Thin Shell"** pattern.
+
+1.  **The App Shell**:
+    *   You build a native Android/iOS app using Capacitor.
+    *   This app has **zero** business logic. Its only job is to open a WebView pointing to your Gateway URL (e.g., `https://warehouse.internal`).
+    *   `capacitor.config.ts`:
+        ```typescript
+        const config: CapacitorConfig = {
+          appId: 'com.company.warehouse',
+          appName: 'WarehouseApp',
+          webDir: 'dist',
+          server: {
+            url: 'https://warehouse.internal', // Points to your Nginx Gateway
+            allowNavigation: ['warehouse.internal']
+          }
+        };
+        ```
+
+2.  **The User Experience**:
+    *   User opens the App -> WebView loads `https://warehouse.internal/` (Core).
+    *   User taps "Inventory" -> WebView navigates to `https://warehouse.internal/wms/` (WMS).
+    *   **Native Plugins**: Capacitor injects its bridge into the WebView. As long as your WMS React App installs `@capacitor/core`, it can scan barcodes, take photos, and vibrate just like a native app.
+
+3.  **The Trade-off**:
+    *   **White Flash**: When moving from Core to WMS, the screen might flash white for 200ms while the new HTML loads.
+    *   **Network Dependency**: The device *must* be on the warehouse Wi-Fi. If the network drops, the app stops working (unless you implement complex Service Worker caching).
+
 ---
 
 ## Option 2: The "Strict Monolith" with Runtime Handshake
