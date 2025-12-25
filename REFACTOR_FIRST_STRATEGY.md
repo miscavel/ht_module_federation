@@ -140,7 +140,7 @@ A common blocker in Modular Monoliths is the root `store.ts` importing reducers 
 ### The Problem
 ```typescript
 // ❌ BAD: Core depends on WMS
-import { wmsReducer } from '../WMS/features/inventory'; 
+import { wmsReducer } from '../WMS/reducer'; 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -178,12 +178,14 @@ export const injectReducer = (key: string, reducer: any) => {
 WMS uses the injected utility.
 
 **Q: How can WMS import from Core in Federation?**
-You are right that WMS cannot access Core's files directly. To make this work, we use **Bi-directional Federation**:
-1.  **Core** acts as a Host, but *also* as a Remote. It `exposes` the `./StoreUtils` file in its Vite config.
+
+WMS cannot access Core's files directly. To make this work, we use **Bi-directional Federation**:
+1.  **Core** acts as a Host, but *also* as a Remote. It `exposes` the `./StoreUtils` file in its webpack config.
 2.  **WMS** lists `Core` in its `remotes` configuration.
 3.  At runtime, Module Federation resolves `import ... from 'Core/StoreUtils'` to the already-loaded Core instance.
 
 **Q: How are types resolved?**
+
 Since `Core` is in a different repo, TypeScript in `WMS` won't find the definitions for `'Core/StoreUtils'`. We have two options:
 
 1.  **The Modern Way (Recommended)**: Use the `@module-federation/typescript` plugin.
@@ -212,12 +214,11 @@ export const WmsApp = () => {
 };
 ```
 
-#### 3. Using Selectors (The "Magic" of Context)
+#### 3. Using Selectors
 WMS does **not** need to import the store to read state. It uses the `useSelector` hook, which connects to the `<Provider>` in Core.
 
 ```typescript
 import { useSelector } from 'react-redux';
-// Import TYPES only from Shared (safe!)
 import { RootState } from '../../Shared/types'; 
 
 export const WmsDashboard = () => {
@@ -231,10 +232,8 @@ export const WmsDashboard = () => {
 ### Rules for Selectors
 1.  **WMS selecting Core state**: **Allowed**. (`state.auth.user`)
 2.  **Core selecting WMS state**: **Forbidden**. Core should not know `state.wms` exists.
-    *   *Alternative*: If Core needs to display WMS data (e.g., "5 Tasks"), WMS should export a Component (e.g., `<WmsNotificationBadge />`) that connects to the store itself.
 
 ---
-
 ## Phase 2: The Physical Split (Migration)
 
 Once `dependency-cruiser` reports **zero violations**:
