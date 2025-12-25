@@ -49,7 +49,7 @@ Move files from technical layers (components, services, utils) to domain layers.
       /BinToStation
     /services
       /owm.endpoints.ts
-  /Shared     (Code shared between WMS and ASRS, e.g. Types, Shared Components)
+  /Shared     (Code shared across Core, WMS and ASRS, e.g. Types, Shared Components)
     /components
       /Button
 ```
@@ -58,16 +58,18 @@ Move files from technical layers (components, services, utils) to domain layers.
 We must enforce these rules to ensure the modules can eventually be split:
 
 1.  **Core** cannot import from **WMS** or **ASRS**. (Host shouldn't depend on Remotes).
-2.  **WMS** cannot import from **ASRS**. (Remotes should be siblings, not parents).
-3.  **WMS** *can* import from **Core** (for Auth/Layout) and **Shared**.
-4.  **Shared** cannot import from anywhere (Leaf node).
+2.  **Core** *can* import from **Shared**.
+3.  **WMS** cannot import from **ASRS**. (Remotes should be siblings, not parents).
+4.  **WMS** *can* import from **Core** and **Shared**.
+5.  **ASRS** *can* import from **Core**, **Shared** and **WMS** (tentative).
+6.  **Shared** cannot import from anywhere (Leaf node).
 
 ---
 
 ## Recommended Tools
 
 ### 1. Visualization & Analysis: `madge`
-Before we start moving files, we need to see the mess. `madge` is excellent for generating visual graphs of our dependencies and finding circular references.
+`madge` is excellent for generating visual graphs of our dependencies and finding circular references.
 
 *   **Install**: `npm install -g madge`
 *   **Usage**:
@@ -76,7 +78,7 @@ Before we start moving files, we need to see the mess. `madge` is excellent for 
     *   **Check what WMS depends on**: `madge --summary ./src/WMS`
 
 ### 2. Strict Enforcement: `dependency-cruiser`
-This is the heavy lifter. It allows us to write rules in JSON/JS that fail the build if a forbidden import occurs.
+It allows us to write rules in JSON/JS that fail the build if a forbidden import occurs.
 
 *   **Install**: `npm install --save-dev dependency-cruiser`
 *   **Configuration** (`.dependency-cruiser.js`):
@@ -94,7 +96,8 @@ This is the heavy lifter. It allows us to write rules in JSON/JS that fail the b
           comment: 'Core cannot depend on Feature Modules',
           from: { path: '^src/Core' },
           to: { path: '^src/(WMS|ASRS)' }
-        }
+        },
+        ...
       ]
     };
     ```
@@ -110,7 +113,8 @@ For real-time feedback in VS Code (red squiggly lines), use this ESLint plugin.
       "boundaries/elements": [
         { "type": "Core", "pattern": "src/Core" },
         { "type": "WMS", "pattern": "src/WMS" },
-        { "type": "ASRS", "pattern": "src/ASRS" }
+        { "type": "ASRS", "pattern": "src/ASRS" },
+        { "type": "Shared", "pattern": "src/Shared" },
       ]
     },
     "rules": {
@@ -119,45 +123,15 @@ For real-time feedback in VS Code (red squiggly lines), use this ESLint plugin.
         {
           "default": "disallow",
           "rules": [
-            { "from": "WMS", "allow": ["Core"] },
-            { "from": "ASRS", "allow": ["Core"] },
-            { "from": "Core", "allow": [] } 
+            { "from": "WMS", "allow": ["Core", "Shared"] },
+            { "from": "ASRS", "allow": ["Core", "Shared"] },
+            { "from": "Core", "allow": ["Shared"] },
+            { "from": "Shared", "allow": [] } 
           ]
         }
       ]
     }
     ```
-
----
-
-## How to Find & Break Dependency Links
-
-### Step 1: The "Barrel" File Check
-Look for `index.ts` files that export everything.
-*   **Problem**: If `Core/index.ts` exports `AuthService` AND `SomeHelper`, and `WMS` imports `SomeHelper`, it might accidentally pull in `AuthService` which might pull in other things.
-*   **Fix**: Import directly from files (`import { X } from '@core/services/X'`) or split barrel files by domain.
-
-### Step 2: The "Global State" Trap
-Look for Redux slices or React Contexts.
-*   **Problem**: `WMS` dispatches an action defined in `ASRS`.
-*   **Fix**:
-    *   Move the shared state to `Core` (if global).
-    *   Or, use **Event Bus** pattern (Custom Events) if modules need to communicate loosely without importing each other's code.
-
-### Step 3: The "Utils" Drawer
-Everyone dumps code into `src/utils`.
-*   **Problem**: `date-formatter.ts` is used by everyone.
-*   **Fix**: Move generic utils to `src/Shared/utils`. If a util is specific to WMS logic, move it to `src/WMS/utils`.
-
-### Step 4: Circular Dependencies
-Use `madge --circular` to find them.
-*   **Scenario**: `User` (Core) has a property `currentTask` (WMS). `Task` (WMS) has a property `assignedUser` (Core).
-*   **Fix**: Create an interface in `Shared` or `Core`.
-    *   `Core` defines `interface IUser { ... }`.
-    *   `WMS` imports `IUser`.
-    *   `Core` does *not* import `Task` class, but maybe a generic `ITask` interface if absolutely needed.
-
----
 
 ## State Management Strategy: Dynamic Redux
 
