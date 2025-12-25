@@ -1,7 +1,6 @@
 # Refactor-First Strategy: The Modular Monolith
 
-## Executive Summary
-This strategy focuses on cleaning up the existing codebase *before* introducing the complexity of Module Federation. The goal is to transform a into a Modular Monolith where boundaries are strictly enforced by tooling.
+This strategy focuses on cleaning up the existing codebase *before* introducing the complexity of Module Federation. The goal is to transform it into a Modular Monolith where boundaries are strictly enforced by tooling.
 
 **Why this approach?**
 *   **Safety**: We don't break the build. We fix dependencies while the app is still one cohesive unit.
@@ -17,28 +16,42 @@ The first goal is to organize the code into "Domains" that mirror our future rep
 ### 1. Restructure Folders
 Move files from technical layers (components, services, utils) to domain layers.
 
-**Current (Likely):**
+**Current (Example):**
 ```text
 /src
   /components
-    /Button.tsx
-    /WmsGrid.tsx
+    /Button
+  /pages
+    /Login
+    /BerthReceiving
+    /BinToStation
   /services
-    /AuthService.ts
-    /InventoryService.ts
+    /auth.endpoints.ts
+    /wms.endpoints.ts
+    /owm.endpoints.ts
 ```
 
-**Target Structure:**
+**Target Structure (Example):**
 ```text
 /src
-  /Core       (Future Host Repo)
-    /components (Button.tsx)
-    /services   (AuthService.ts)
-  /WMS        (Future Remote Repo)
-    /components (WmsGrid.tsx)
-    /services   (InventoryService.ts)
-  /ASRS       (Future Remote Repo)
-  /Shared     (Code shared between WMS and ASRS, e.g. Types)
+  /Core
+    /pages
+      /Login
+    /services
+      /auth.endpoints.ts
+  /WMS
+    /pages
+      /BerthReceiving
+    /services
+      /wms.endpoints.ts
+  /ASRS
+    /pages
+      /BinToStation
+    /services
+      /owm.endpoints.ts
+  /Shared     (Code shared between WMS and ASRS, e.g. Types, Shared Components)
+    /components
+      /Button
 ```
 
 ### 2. The Golden Rules of Dependency
