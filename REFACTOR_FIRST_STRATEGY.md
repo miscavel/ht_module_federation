@@ -146,6 +146,65 @@ Use `madge --circular` to find them.
 
 ---
 
+## State Management Strategy: Dynamic Redux
+
+A common blocker in Modular Monoliths is the root `store.ts` importing reducers from all modules. This violates the rule that **Core cannot import from WMS**.
+
+### The Problem
+```typescript
+// ❌ BAD: Core depends on WMS
+import { wmsReducer } from '../WMS/features/inventory'; 
+export const store = configureStore({
+  reducer: {
+    auth: authReducer,
+    wms: wmsReducer, // <--- Hard dependency!
+  },
+});
+```
+
+### The Solution: Reducer Injection
+Invert control. `Core` exposes a way to register reducers, and `WMS` registers itself when it loads.
+
+#### 1. Modify Core Store (`src/Core/store/index.ts`)
+```typescript
+import { combineReducers, configureStore } from '@reduxjs/toolkit';
+import { authReducer } from './authSlice';
+
+// Define static reducers (Core only)
+const staticReducers = { auth: authReducer };
+const asyncReducers: Record<string, any> = {};
+
+export const store = configureStore({ reducer: staticReducers });
+
+// Expose injection method
+export const injectReducer = (key: string, reducer: any) => {
+  if (asyncReducers[key]) return;
+  asyncReducers[key] = reducer;
+  store.replaceReducer(combineReducers({ ...staticReducers, ...asyncReducers }));
+};
+```
+
+#### 2. Register in Module (`src/WMS/index.tsx`)
+```typescript
+import { useEffect } from 'react';
+import { injectReducer } from '../../Core/store'; // WMS -> Core is allowed
+import { wmsReducer } from './slices/wmsSlice';
+
+export const WmsApp = () => {
+  useEffect(() => {
+    injectReducer('wms', wmsReducer);
+  }, []);
+  return <div>WMS Content</div>;
+};
+```
+
+### Rules for Selectors
+1.  **WMS selecting Core state**: **Allowed**. (`state.auth.user`)
+2.  **Core selecting WMS state**: **Forbidden**. Core should not know `state.wms` exists.
+    *   *Alternative*: If Core needs to display WMS data (e.g., "5 Tasks"), WMS should export a Component (e.g., `<WmsNotificationBadge />`) that connects to the store itself.
+
+---
+
 ## Phase 2: The Physical Split (Migration)
 
 Once `dependency-cruiser` reports **zero violations**:
