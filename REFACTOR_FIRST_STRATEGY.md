@@ -162,10 +162,12 @@ export const store = configureStore({
 });
 ```
 
-### The Solution: Reducer Injection
-Invert control. `Core` exposes a way to register reducers, and `WMS` registers itself when it loads.
+### The Solution: Reducer Injection & Context
+In Module Federation, you **cannot** import the `store` instance directly from another repo. However, because `react-redux` is a shared singleton, Remotes can access the Store via **React Context** provided by the Host.
 
 #### 1. Modify Core Store (`src/Core/store/index.ts`)
+Core needs to expose a utility to allow Remotes to add their reducers.
+
 ```typescript
 import { combineReducers, configureStore } from '@reduxjs/toolkit';
 import { authReducer } from './authSlice';
@@ -176,7 +178,8 @@ const asyncReducers: Record<string, any> = {};
 
 export const store = configureStore({ reducer: staticReducers });
 
-// Expose injection method
+// --- EXPORT THIS UTILITY ---
+// In the future, Core will expose this file as 'Core/StoreUtils'
 export const injectReducer = (key: string, reducer: any) => {
   if (asyncReducers[key]) return;
   asyncReducers[key] = reducer;
@@ -185,9 +188,33 @@ export const injectReducer = (key: string, reducer: any) => {
 ```
 
 #### 2. Register in Module (`src/WMS/index.tsx`)
+WMS uses the injected utility.
+
+**Q: How can WMS import from Core in Federation?**
+You are right that WMS cannot access Core's files directly. To make this work, we use **Bi-directional Federation**:
+1.  **Core** acts as a Host, but *also* as a Remote. It `exposes` the `./StoreUtils` file in its Vite config.
+2.  **WMS** lists `Core` in its `remotes` configuration.
+3.  At runtime, Module Federation resolves `import ... from 'Core/StoreUtils'` to the already-loaded Core instance.
+
+**Q: How are types resolved?**
+Since `Core` is in a different repo, TypeScript in `WMS` won't find the definitions for `'Core/StoreUtils'`. You have two options:
+
+1.  **The Modern Way (Recommended)**: Use the `@module-federation/typescript` plugin.
+    *   It automatically downloads the `d.ts` files from Core's build output into WMS's `node_modules/@types` folder during the build process.
+    *   This keeps types perfectly in sync without manual work.
+
+2.  **The Manual Way**: Create a declaration file in WMS.
+    *   Create `src/remotes.d.ts`:
+        ```typescript
+        declare module 'Core/StoreUtils' {
+            export const injectReducer: (key: string, reducer: any) => void;
+        }
+        ```
+
 ```typescript
 import { useEffect } from 'react';
-import { injectReducer } from '../../Core/store'; // WMS -> Core is allowed
+// Refactor Phase: import { injectReducer } from '@core/store';
+// Split Phase: import { injectReducer } from 'Core/StoreUtils'; 
 import { wmsReducer } from './slices/wmsSlice';
 
 export const WmsApp = () => {
@@ -195,6 +222,22 @@ export const WmsApp = () => {
     injectReducer('wms', wmsReducer);
   }, []);
   return <div>WMS Content</div>;
+};
+```
+
+#### 3. Using Selectors (The "Magic" of Context)
+WMS does **not** need to import the store to read state. It uses the `useSelector` hook, which connects to the `<Provider>` in Core.
+
+```typescript
+import { useSelector } from 'react-redux';
+// Import TYPES only from Shared (safe!)
+import { RootState } from '../../Shared/types'; 
+
+export const WmsDashboard = () => {
+  // This works because WMS is rendered inside Core's Provider
+  const user = useSelector((state: RootState) => state.auth.user);
+  
+  return <h1>Hello {user.name}</h1>;
 };
 ```
 
