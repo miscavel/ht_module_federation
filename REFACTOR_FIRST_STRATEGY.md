@@ -1,18 +1,18 @@
 # Refactor-First Strategy: The Modular Monolith
 
 ## Executive Summary
-This strategy focuses on cleaning up the existing codebase *before* introducing the complexity of Module Federation. The goal is to transform a "Spaghetti Monolith" into a "Modular Monolith" where boundaries are strictly enforced by tooling.
+This strategy focuses on cleaning up the existing codebase *before* introducing the complexity of Module Federation. The goal is to transform a into a Modular Monolith where boundaries are strictly enforced by tooling.
 
 **Why this approach?**
-*   **Safety**: You don't break the build. You fix dependencies while the app is still one cohesive unit.
-*   **Velocity**: Refactoring is 10x faster because your IDE (VS Code) can trace references, rename symbols, and move files across the entire project instantly.
-*   **Validation**: You can prove that "WMS" is independent before you actually move it.
+*   **Safety**: We don't break the build. We fix dependencies while the app is still one cohesive unit.
+*   **Velocity**: Refactoring is 10x faster because our IDE (VS Code) can trace references, rename symbols, and move files across the entire project instantly.
+*   **Validation**: We can prove that "Core", "WMS" and "ASRS" can be split into separate modules before breaking out.
 
 ---
 
 ## Phase 1: The Logical Split (In-Place)
 
-Your first goal is to organize the code into "Domains" that mirror your future repositories.
+The first goal is to organize the code into "Domains" that mirror our future repositories.
 
 ### 1. Restructure Folders
 Move files from technical layers (components, services, utils) to domain layers.
@@ -42,7 +42,7 @@ Move files from technical layers (components, services, utils) to domain layers.
 ```
 
 ### 2. The Golden Rules of Dependency
-You must enforce these rules to ensure the modules can eventually be split:
+We must enforce these rules to ensure the modules can eventually be split:
 
 1.  **Core** cannot import from **WMS** or **ASRS**. (Host shouldn't depend on Remotes).
 2.  **WMS** cannot import from **ASRS**. (Remotes should be siblings, not parents).
@@ -54,7 +54,7 @@ You must enforce these rules to ensure the modules can eventually be split:
 ## Recommended Tools
 
 ### 1. Visualization & Analysis: `madge`
-Before you start moving files, you need to see the mess. `madge` is excellent for generating visual graphs of your dependencies and finding circular references.
+Before we start moving files, we need to see the mess. `madge` is excellent for generating visual graphs of our dependencies and finding circular references.
 
 *   **Install**: `npm install -g madge`
 *   **Usage**:
@@ -63,7 +63,7 @@ Before you start moving files, you need to see the mess. `madge` is excellent fo
     *   **Check what WMS depends on**: `madge --summary ./src/WMS`
 
 ### 2. Strict Enforcement: `dependency-cruiser`
-This is the heavy lifter. It allows you to write rules in JSON/JS that fail the build if a forbidden import occurs.
+This is the heavy lifter. It allows us to write rules in JSON/JS that fail the build if a forbidden import occurs.
 
 *   **Install**: `npm install --save-dev dependency-cruiser`
 *   **Configuration** (`.dependency-cruiser.js`):
@@ -163,7 +163,7 @@ export const store = configureStore({
 ```
 
 ### The Solution: Reducer Injection & Context
-In Module Federation, you **cannot** import the `store` instance directly from another repo. However, because `react-redux` is a shared singleton, Remotes can access the Store via **React Context** provided by the Host.
+In Module Federation, we **cannot** import the `store` instance directly from another repo. However, because `react-redux` is a shared singleton, Remotes can access the Store via **React Context** provided by the Host.
 
 #### 1. Modify Core Store (`src/Core/store/index.ts`)
 Core needs to expose a utility to allow Remotes to add their reducers.
@@ -197,7 +197,7 @@ You are right that WMS cannot access Core's files directly. To make this work, w
 3.  At runtime, Module Federation resolves `import ... from 'Core/StoreUtils'` to the already-loaded Core instance.
 
 **Q: How are types resolved?**
-Since `Core` is in a different repo, TypeScript in `WMS` won't find the definitions for `'Core/StoreUtils'`. You have two options:
+Since `Core` is in a different repo, TypeScript in `WMS` won't find the definitions for `'Core/StoreUtils'`. We have two options:
 
 1.  **The Modern Way (Recommended)**: Use the `@module-federation/typescript` plugin.
     *   It automatically downloads the `d.ts` files from Core's build output into WMS's `node_modules/@types` folder during the build process.
@@ -258,4 +258,4 @@ Once `dependency-cruiser` reports **zero violations**:
 4.  **Setup Module Federation** in the new repo to expose the components.
 5.  **Delete** `src/WMS` from the Old Repo and replace it with a Module Federation Remote import.
 
-This ensures that when you finally split, the code is guaranteed to work in isolation.
+This ensures that when we finally split, the code is guaranteed to work in isolation.
