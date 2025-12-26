@@ -1,7 +1,6 @@
 # Refactor-First Strategy: The Modular Monolith
 
-## Executive Summary
-This strategy focuses on cleaning up the existing codebase *before* introducing the complexity of Module Federation. The goal is to transform a into a Modular Monolith where boundaries are strictly enforced by tooling.
+This strategy focuses on cleaning up the existing codebase *before* introducing the complexity of Module Federation. The goal is to transform it into a Modular Monolith where boundaries are strictly enforced by tooling.
 
 **Why this approach?**
 *   **Safety**: We don't break the build. We fix dependencies while the app is still one cohesive unit.
@@ -17,44 +16,60 @@ The first goal is to organize the code into "Domains" that mirror our future rep
 ### 1. Restructure Folders
 Move files from technical layers (components, services, utils) to domain layers.
 
-**Current (Likely):**
+**Current (Example):**
 ```text
 /src
   /components
-    /Button.tsx
-    /WmsGrid.tsx
+    /Button
+  /pages
+    /Login
+    /BerthReceiving
+    /BinToStation
   /services
-    /AuthService.ts
-    /InventoryService.ts
+    /auth.endpoints.ts
+    /wms.endpoints.ts
+    /owm.endpoints.ts
 ```
 
-**Target Structure:**
+**Target Structure (Example):**
 ```text
 /src
-  /Core       (Future Host Repo)
-    /components (Button.tsx)
-    /services   (AuthService.ts)
-  /WMS        (Future Remote Repo)
-    /components (WmsGrid.tsx)
-    /services   (InventoryService.ts)
-  /ASRS       (Future Remote Repo)
-  /Shared     (Code shared between WMS and ASRS, e.g. Types)
+  /Core
+    /pages
+      /Login
+    /services
+      /auth.endpoints.ts
+  /WMS
+    /pages
+      /BerthReceiving
+    /services
+      /wms.endpoints.ts
+  /ASRS
+    /pages
+      /BinToStation
+    /services
+      /owm.endpoints.ts
+  /Shared     (Code shared across Core, WMS and ASRS, e.g. Types, Shared Components)
+    /components
+      /Button
 ```
 
 ### 2. The Golden Rules of Dependency
 We must enforce these rules to ensure the modules can eventually be split:
 
 1.  **Core** cannot import from **WMS** or **ASRS**. (Host shouldn't depend on Remotes).
-2.  **WMS** cannot import from **ASRS**. (Remotes should be siblings, not parents).
-3.  **WMS** *can* import from **Core** (for Auth/Layout) and **Shared**.
-4.  **Shared** cannot import from anywhere (Leaf node).
+2.  **Core** *can* import from **Shared**.
+3.  **WMS** cannot import from **ASRS**. (Remotes should be siblings, not parents).
+4.  **WMS** *can* import from **Core** and **Shared**.
+5.  **ASRS** *can* import from **Core**, **Shared** and **WMS** (tentative).
+6.  **Shared** cannot import from anywhere (Leaf node).
 
 ---
 
 ## Recommended Tools
 
 ### 1. Visualization & Analysis: `madge`
-Before we start moving files, we need to see the mess. `madge` is excellent for generating visual graphs of our dependencies and finding circular references.
+`madge` is excellent for generating visual graphs of our dependencies and finding circular references.
 
 *   **Install**: `npm install -g madge`
 *   **Usage**:
@@ -63,7 +78,7 @@ Before we start moving files, we need to see the mess. `madge` is excellent for 
     *   **Check what WMS depends on**: `madge --summary ./src/WMS`
 
 ### 2. Strict Enforcement: `dependency-cruiser`
-This is the heavy lifter. It allows us to write rules in JSON/JS that fail the build if a forbidden import occurs.
+It allows us to write rules in JSON/JS that fail the build if a forbidden import occurs.
 
 *   **Install**: `npm install --save-dev dependency-cruiser`
 *   **Configuration** (`.dependency-cruiser.js`):
@@ -81,7 +96,8 @@ This is the heavy lifter. It allows us to write rules in JSON/JS that fail the b
           comment: 'Core cannot depend on Feature Modules',
           from: { path: '^src/Core' },
           to: { path: '^src/(WMS|ASRS)' }
-        }
+        },
+        ...
       ]
     };
     ```
@@ -97,7 +113,8 @@ For real-time feedback in VS Code (red squiggly lines), use this ESLint plugin.
       "boundaries/elements": [
         { "type": "Core", "pattern": "src/Core" },
         { "type": "WMS", "pattern": "src/WMS" },
-        { "type": "ASRS", "pattern": "src/ASRS" }
+        { "type": "ASRS", "pattern": "src/ASRS" },
+        { "type": "Shared", "pattern": "src/Shared" },
       ]
     },
     "rules": {
@@ -106,45 +123,15 @@ For real-time feedback in VS Code (red squiggly lines), use this ESLint plugin.
         {
           "default": "disallow",
           "rules": [
-            { "from": "WMS", "allow": ["Core"] },
-            { "from": "ASRS", "allow": ["Core"] },
-            { "from": "Core", "allow": [] } 
+            { "from": "WMS", "allow": ["Core", "Shared"] },
+            { "from": "ASRS", "allow": ["Core", "Shared"] },
+            { "from": "Core", "allow": ["Shared"] },
+            { "from": "Shared", "allow": [] } 
           ]
         }
       ]
     }
     ```
-
----
-
-## How to Find & Break Dependency Links
-
-### Step 1: The "Barrel" File Check
-Look for `index.ts` files that export everything.
-*   **Problem**: If `Core/index.ts` exports `AuthService` AND `SomeHelper`, and `WMS` imports `SomeHelper`, it might accidentally pull in `AuthService` which might pull in other things.
-*   **Fix**: Import directly from files (`import { X } from '@core/services/X'`) or split barrel files by domain.
-
-### Step 2: The "Global State" Trap
-Look for Redux slices or React Contexts.
-*   **Problem**: `WMS` dispatches an action defined in `ASRS`.
-*   **Fix**:
-    *   Move the shared state to `Core` (if global).
-    *   Or, use **Event Bus** pattern (Custom Events) if modules need to communicate loosely without importing each other's code.
-
-### Step 3: The "Utils" Drawer
-Everyone dumps code into `src/utils`.
-*   **Problem**: `date-formatter.ts` is used by everyone.
-*   **Fix**: Move generic utils to `src/Shared/utils`. If a util is specific to WMS logic, move it to `src/WMS/utils`.
-
-### Step 4: Circular Dependencies
-Use `madge --circular` to find them.
-*   **Scenario**: `User` (Core) has a property `currentTask` (WMS). `Task` (WMS) has a property `assignedUser` (Core).
-*   **Fix**: Create an interface in `Shared` or `Core`.
-    *   `Core` defines `interface IUser { ... }`.
-    *   `WMS` imports `IUser`.
-    *   `Core` does *not* import `Task` class, but maybe a generic `ITask` interface if absolutely needed.
-
----
 
 ## State Management Strategy: Dynamic Redux
 
@@ -153,7 +140,7 @@ A common blocker in Modular Monoliths is the root `store.ts` importing reducers 
 ### The Problem
 ```typescript
 // ❌ BAD: Core depends on WMS
-import { wmsReducer } from '../WMS/features/inventory'; 
+import { wmsReducer } from '../WMS/reducer'; 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -191,12 +178,14 @@ export const injectReducer = (key: string, reducer: any) => {
 WMS uses the injected utility.
 
 **Q: How can WMS import from Core in Federation?**
-You are right that WMS cannot access Core's files directly. To make this work, we use **Bi-directional Federation**:
-1.  **Core** acts as a Host, but *also* as a Remote. It `exposes` the `./StoreUtils` file in its Vite config.
+
+WMS cannot access Core's files directly. To make this work, we use **Bi-directional Federation**:
+1.  **Core** acts as a Host, but *also* as a Remote. It `exposes` the `./StoreUtils` file in its webpack config.
 2.  **WMS** lists `Core` in its `remotes` configuration.
 3.  At runtime, Module Federation resolves `import ... from 'Core/StoreUtils'` to the already-loaded Core instance.
 
 **Q: How are types resolved?**
+
 Since `Core` is in a different repo, TypeScript in `WMS` won't find the definitions for `'Core/StoreUtils'`. We have two options:
 
 1.  **The Modern Way (Recommended)**: Use the `@module-federation/typescript` plugin.
@@ -225,12 +214,11 @@ export const WmsApp = () => {
 };
 ```
 
-#### 3. Using Selectors (The "Magic" of Context)
-WMS does **not** need to import the store to read state. It uses the `useSelector` hook, which connects to the `<Provider>` in Core.
+#### 3. Using Selectors
+Modules can use `useSelector` hook, which connects to the `<Provider>` in Core.
 
 ```typescript
 import { useSelector } from 'react-redux';
-// Import TYPES only from Shared (safe!)
 import { RootState } from '../../Shared/types'; 
 
 export const WmsDashboard = () => {
@@ -242,9 +230,9 @@ export const WmsDashboard = () => {
 ```
 
 ### Rules for Selectors
-1.  **WMS selecting Core state**: **Allowed**. (`state.auth.user`)
-2.  **Core selecting WMS state**: **Forbidden**. Core should not know `state.wms` exists.
-    *   *Alternative*: If Core needs to display WMS data (e.g., "5 Tasks"), WMS should export a Component (e.g., `<WmsNotificationBadge />`) that connects to the store itself.
+1.  **Non-Core modules selecting Core state**: **Allowed**. (`state.auth.user`)
+2.  **Core selecting Non-Core states**: **Forbidden**. Core should not know `state.wms` exists, for example.
+3.  **Non-Core modules selecting other Non-Core states**: **Forbidden**. Cross module state reading should be avoided to have clear separation
 
 ---
 
