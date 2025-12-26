@@ -215,7 +215,7 @@ export const WmsApp = () => {
 ```
 
 #### 3. Using Selectors
-WMS does **not** need to import the store to read state. It uses the `useSelector` hook, which connects to the `<Provider>` in Core.
+Modules can use `useSelector` hook, which connects to the `<Provider>` in Core.
 
 ```typescript
 import { useSelector } from 'react-redux';
@@ -230,8 +230,9 @@ export const WmsDashboard = () => {
 ```
 
 ### Rules for Selectors
-1.  **WMS selecting Core state**: **Allowed**. (`state.auth.user`)
-2.  **Core selecting WMS state**: **Forbidden**. Core should not know `state.wms` exists.
+1.  **Non-Core modules selecting Core state**: **Allowed**. (`state.auth.user`)
+2.  **Core selecting Non-Core states**: **Forbidden**. Core should not know `state.wms` exists, for example.
+3.  **Non-Core modules selecting other Non-Core states**: **Forbidden**. Cross module state reading should be avoided to have clear separation
 
 ---
 ## Phase 2: The Physical Split (Migration)
