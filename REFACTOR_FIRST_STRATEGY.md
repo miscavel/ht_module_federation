@@ -248,14 +248,62 @@ export const WmsDashboard = () => {
 
 ---
 
-## Phase 2: The Physical Split (Migration)
+## Phase 2: The Proof of Concept (In-Repo Split)
 
-Once `dependency-cruiser` reports **zero violations**:
+Before moving code to separate Git repositories, we will build the actual Microfrontend architecture *inside* the current repository. This allows us to verify the build pipeline, Docker setup, and runtime integration without the overhead of managing multiple repos.
 
-1.  **Create New Repo** (e.g., `ht-wms`).
-2.  **Copy** the `src/WMS` folder to `src` in the new repo.
-3.  **Copy** the `src/Shared` folder (or publish it as an NPM package).
-4.  **Setup Module Federation** in the new repo to expose the components.
-5.  **Delete** `src/WMS` from the Old Repo and replace it with a Module Federation Remote import.
+### 1. Create Independent Projects
+Create a new folder structure (e.g., `apps/`) alongside your existing `src/`.
+*   `apps/Core`: A standalone Vite project.
+*   `apps/WMS`: A standalone Vite project.
+*   `apps/ASRS`: A standalone Vite project.
+*   `packages/Shared`: Shared logic/types (symlinked or local npm package).
 
-This ensures that when we finally split, the code is guaranteed to work in isolation.
+**Action**: Move the refactored code from `src/WMS` into `apps/WMS/src`.
+
+### 2. Configure Module Federation
+Set up `vite.config.ts` for each project.
+*   **Core**: Configured as Host (`remotes: { wms: '...' }`).
+*   **WMS**: Configured as Remote (`exposes: { './App': './src/App' }`).
+
+### 3. Docker & Orchestration
+We need to prove that these apps can run as a cohesive SPA in a production-like environment.
+
+1.  **Dockerfiles**: Create a `Dockerfile` for each app (`apps/WMS/Dockerfile`) that builds the static assets and serves them (e.g., via Nginx).
+2.  **Root `docker-compose.yml`**:
+    ```yaml
+    services:
+      # The Old Monolith (Reference)
+      monolith:
+        build: .
+        ports: ["3000:80"]
+
+      # The New Microfrontends
+      mf-core:
+        build: ./apps/Core
+        ports: ["3001:80"]
+      mf-wms:
+        build: ./apps/WMS
+        ports: ["3002:80"]
+    ```
+
+### 4. Verification
+Run `docker-compose up`. You should be able to:
+1.  Open `localhost:3000` and see the Old Monolith working.
+2.  Open `localhost:3001` and see the New Core loading WMS from `localhost:3002`.
+
+---
+
+## Phase 3: The Physical Split (Migration)
+
+Once the `docker-compose` setup proves that the Microfrontend architecture works as a single SPA:
+
+1.  **Create New Repositories** (e.g., `ht-core`, `ht-wms`, `ht-asrs`).
+2.  **Migrate Projects**:
+    *   Move `apps/Core` -> `ht-core` repo.
+    *   Move `apps/WMS` -> `ht-wms` repo.
+    *   Move `apps/ASRS` -> `ht-asrs` repo.
+3.  **Migrate CI/CD**: Copy the Docker build steps from the root `docker-compose` into the CI pipelines of the new repositories.
+4.  **Decommission**: Delete the `apps/` folder and the old `src/` folder from the original repository.
+
+This ensures that when you finally split, the code is guaranteed to work in isolation.
