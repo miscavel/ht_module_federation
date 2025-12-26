@@ -242,17 +242,17 @@ Before moving code to separate Git repositories, we will build the actual Microf
 
 ### 1. Create Independent Projects
 Create a new folder structure (e.g., `apps/`) alongside your existing `src/`.
-*   `apps/Core`: A standalone Vite project.
-*   `apps/WMS`: A standalone Vite project.
-*   `apps/ASRS`: A standalone Vite project.
-*   `packages/Shared`: Shared logic/types (symlinked or local npm package).
-
-**Action**: Move the refactored code from `src/WMS` into `apps/WMS/src`.
+*   `apps/Core`: A standalone React project.
+*   `apps/WMS`: A standalone React project.
+*   `apps/ASRS`: A standalone React project.
+*   `packages/Shared`: Shared logic/types/components (symlinked or local npm package).
 
 ### 2. Configure Module Federation
-Set up `vite.config.ts` for each project.
+Set up `webpack.config.ts` for each project.
 *   **Core**: Configured as Host (`remotes: { wms: '...' }`).
 *   **WMS**: Configured as Remote (`exposes: { './App': './src/App' }`).
+*   **ASRS**: Configured as Remote (`exposes: { './App': './src/App' }`).
+*   **Shared**: Configured as symlinked or local npm package
 
 ### 3. Docker & Orchestration
 We need to prove that these apps can run as a cohesive SPA in a production-like environment.
@@ -273,12 +273,15 @@ We need to prove that these apps can run as a cohesive SPA in a production-like 
       mf-wms:
         build: ./apps/WMS
         ports: ["3002:80"]
+      mf-asrs:
+        build: ./apps/ASRS
+        ports: ["3003:80"]
     ```
 
 ### 4. Verification
 Run `docker-compose up`. You should be able to:
 1.  Open `localhost:3000` and see the Old Monolith working.
-2.  Open `localhost:3001` and see the New Core loading WMS from `localhost:3002`.
+2.  Open `localhost:3001` and see the New Core loading WMS from `localhost:3002` and ASRS from `localhost:3003`
 
 ---
 
@@ -286,12 +289,12 @@ Run `docker-compose up`. You should be able to:
 
 Once the `docker-compose` setup proves that the Microfrontend architecture works as a single SPA:
 
-1.  **Create New Repositories** (e.g., `ht-core`, `ht-wms`, `ht-asrs`).
+1.  **Create New Repositories** (e.g., `ht-core` and `ht-shared-modules`).
 2.  **Migrate Projects**:
     *   Move `apps/Core` -> `ht-core` repo.
-    *   Move `apps/WMS` -> `ht-wms` repo.
-    *   Move `apps/ASRS` -> `ht-asrs` repo.
+    *   Move `apps/WMS` -> `WMS` monorepo.
+    *   Move `apps/ASRS` -> `rr_oks` / `ASRS` repo.
+    *   Move `packages/Shared` -> `ht-shared-modules` repo
 3.  **Migrate CI/CD**: Copy the Docker build steps from the root `docker-compose` into the CI pipelines of the new repositories.
-4.  **Decommission**: Delete the `apps/` folder and the old `src/` folder from the original repository.
+4.  **Update docker-compose**: Update the docker-compose of each repo to run the desired combination of services (with versioning management)
 
-This ensures that when you finally split, the code is guaranteed to work in isolation.
