@@ -241,7 +241,7 @@ export const WmsDashboard = () => {
 Before moving code to separate Git repositories, we will build the actual Microfrontend architecture *inside* the current repository. This allows us to verify the build pipeline, Docker setup, and runtime integration without the overhead of managing multiple repos.
 
 ### 1. Create Independent Projects
-Create a new folder structure (e.g., `apps/`) alongside your existing `src/`.
+Create a new folder structure (e.g., `apps/`) alongside our existing `src/`.
 *   `apps/Core`: A standalone React project.
 *   `apps/WMS`: A standalone React project.
 *   `apps/ASRS`: A standalone React project.
@@ -279,7 +279,7 @@ We need to prove that these apps can run as a cohesive SPA in a production-like 
     ```
 
 ### 4. Verification
-Run `docker-compose up`. You should be able to:
+Run `docker-compose up`. We should be able to:
 1.  Open `localhost:3000` and see the Old Monolith working.
 2.  Open `localhost:3001` and see the New Core loading WMS from `localhost:3002` and ASRS from `localhost:3003`
 

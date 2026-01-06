@@ -31,14 +31,14 @@ We are building a system with the following components:
 ### 1. Ease and Separation of Versioning
 *   **NPM Approach**:
     *   **Pros**:
-        *   **Deterministic**: You know exactly what version of WMS is in Core at build time.
+        *   **Deterministic**: We know exactly what version of WMS is in Core at build time.
         *   **Auditability**: `package-lock.json` captures the entire dependency tree.
     *   **Cons**:
-        *   **Release Train**: Since WMS is a dependency of Core, if WMS releases `v2.5.1`, you must update `package.json` in Core, run `npm install`, and cut a new release of Core (e.g., `v1.7.1`).
+        *   **Release Train**: Since WMS is a dependency of Core, if WMS releases `v2.5.1`, we must update `package.json` in Core, run `npm install`, and cut a new release of Core (e.g., `v1.7.1`).
         *   **Coupling**: Core must be released whenever any child module changes, contradicting the goal of independent mono-repos.
 *   **Module Federation**:
     *   **Pros**:
-        *   **Decoupled**: Core `v1.7.0` loads `remoteEntry.js` from a URL. You can deploy WMS `v2.5.1` to that URL without touching Core.
+        *   **Decoupled**: Core `v1.7.0` loads `remoteEntry.js` from a URL. We can deploy WMS `v2.5.1` to that URL without touching Core.
         *   **Independent Velocity**: WMS team can push hotfixes to production instantly.
     *   **Cons**:
         *   **Runtime Risk**: Compatibility across Core, WMS and ASRS modules are not caught during build time (may cause unexpected crash). Can be mitigated via Semantic Versioning
@@ -62,9 +62,9 @@ We are building a system with the following components:
 ### 3. Ease of Deployment as Single Application
 *   **NPM Approach**:
     *   **Pros**:
-        *   **Atomic Artifact**: You get one set of static assets (HTML/JS/CSS), single deployment
+        *   **Atomic Artifact**: We get one set of static assets (HTML/JS/CSS), single deployment
     *   **Cons**:
-        *   **Monolithic**: You cannot easily deploy "Core + WMS" and "Core + ASRS" separately without maintaining two different build configurations.
+        *   **Monolithic**: We cannot easily deploy "Core + WMS" and "Core + ASRS" separately without maintaining two different build configurations.
 *   **Module Federation**:
     *   **Cons**:
         *   **Composite**: Need to deploy 3 separate static sites (Core, WMS, ASRS), stitched via gateway (e.g. `/gateway/handy-terminal/wms/` -> WMS Container).
@@ -82,15 +82,15 @@ A common alternative proposal is to have specific "Shell Apps" for each combinat
 | **Build Time** | Slower (bundles everything). | Faster (bundles only local code). |
 
 **Why "Combinator" fails for this scenario:**
-1.  **The "Diamond Dependency" Hell**: If ASRS depends on WMS, and both depend on Core, you risk bundling two versions of Core if versions drift. This causes "Singleton" errors (e.g., React Hooks failures).
-2.  **The "Native Plugin" Trap**: If you have 3 different Combinator Apps, you have 3 different Native Projects (Android/iOS). Adding a new plugin requires updating native code in 3 repositories. With Module Federation, you only have **one** Native App (Core).
+1.  **The "Diamond Dependency" Hell**: If ASRS depends on WMS, and both depend on Core, we risk bundling two versions of Core if versions drift. This causes "Singleton" errors (e.g., React Hooks failures).
+2.  **The "Native Plugin" Trap**: If we have 3 different Combinator Apps, we have 3 different Native Projects (Android/iOS). Adding a new plugin requires updating native code in 3 repositories. With Module Federation, we only have **one** Native App (Core).
 
 ### 5. Strategy for Libraries Version Alignment
 
 One of the biggest challenges in Module Federation is ensuring that shared libraries (like `react`, `@ionic/react`, or `react-router`) are compatible across different remotes. If Core uses Ionic v7 and WMS uses Ionic v6, the app might crash.
 
 #### The Problem
-*   **Singleton Requirement**: Libraries like `react` and `@ionic/react` rely on global state. If two versions are loaded simultaneously, you get errors like "Hooks can only be called inside the body of a function component".
+*   **Singleton Requirement**: Libraries like `react` and `@ionic/react` rely on global state. If two versions are loaded simultaneously, we get errors like "Hooks can only be called inside the body of a function component".
 *   **Version Drift**: Over time, the WMS team might upgrade their dependencies while the Core team stays on an older version.
 
 #### The Solution Strategy
@@ -126,4 +126,4 @@ While both approaches have trade-offs, **Module Federation** approach looks to b
 1.  **Decoupled Lifecycles**: Module Federation architecture allows Core, WMS, and ASRS modules to be released and upgraded independent of each other. The NPM package approach means a minimum of 2 releases is required each time a module is updated (the "module"'s release and the "host app"'s release), and it may be tricky to resolve the version dependency due to the diamond dependency problem.
 2.  **Infrastructure Composition**: It allows the infrastructure (Docker/Nginx) to define the application composition rather than the build tool (Webpack/Vite). This aligns with the requirement to deploy different combinations (Core+WMS vs Core+ASRS vs Core+WMS+ASRS) without maintaining multiple build configurations.
 
-By accepting the complexity of runtime integration, we gain the agility of independent releases, which is critical for high-velocity teams working in separate repositories. 
+We can also consider a hybrid approach where the main strategy is through Module Federation, and utilize NPM package for distributing the common components (drawers, alerts, notifications)
