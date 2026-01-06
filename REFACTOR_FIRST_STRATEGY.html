@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Refactor-First Strategy: The Modular Monolith</title>
+    <style>
+        body {
+            font-family: 'Calibri', 'Segoe UI', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        /* Shifted styles down one level */
+        h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            font-size: 2em; /* Explicit size to mimic H1 */
+        }
+        h3 {
+            color: #2980b9;
+            margin-top: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            font-size: 1.5em; /* Explicit size to mimic H2 */
+        }
+        h4 {
+            color: #16a085;
+            margin-top: 25px;
+            font-size: 1.17em; /* Explicit size to mimic H3 */
+        }
+        h5 {
+            color: #8e44ad;
+            margin-top: 20px;
+            font-size: 1em; /* Explicit size to mimic H4 */
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            color: #333;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: #c7254e;
+        }
+        pre {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        ul {
+            margin-bottom: 15px;
+        }
+        li {
+            margin-bottom: 5px;
+        }
+        .strong {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Refactor-First Strategy: The Modular Monolith</h2>
+
+    <p>This strategy focuses on cleaning up the existing codebase <em>before</em> introducing the complexity of Module Federation. The goal is to transform it into a Modular Monolith where boundaries are strictly enforced by tooling.</p>
+
+    <p><strong>Why this approach?</strong></p>
+    <ul>
+        <li><strong>Safety</strong>: We don't break the build. We fix dependencies while the app is still one cohesive unit.</li>
+        <li><strong>Velocity</strong>: Refactoring is 10x faster because our IDE (VS Code) can trace references, rename symbols, and move files across the entire project instantly.</li>
+        <li><strong>Validation</strong>: We can prove that "Core", "WMS" and "ASRS" can be split into separate modules before breaking out.</li>
+    </ul>
+
+    <hr>
+
+    <h3>Phase 1: The Logical Split (In-Place)</h3>
+
+    <p>The first goal is to organize the code into "Domains" that mirror our future repositories.</p>
+
+    <h4>1. Restructure Folders</h4>
+    <p>Move files from technical layers (components, services, utils) to domain layers.</p>
+
+    <p><strong>Current (Example):</strong></p>
+    <pre><code>/src
+  /components
+    /Button
+  /pages
+    /Login
+    /BerthReceiving
+    /BinToStation
+  /services
+    /auth.endpoints.ts
+    /wms.endpoints.ts
+    /owm.endpoints.ts</code></pre>
+
+    <p><strong>Target Structure (Example):</strong></p>
+    <pre><code>/src
+  /Core
+    /pages
+      /Login
+    /services
+      /auth.endpoints.ts
+  /WMS
+    /pages
+      /BerthReceiving
+    /services
+      /wms.endpoints.ts
+  /ASRS
+    /pages
+      /BinToStation
+    /services
+      /owm.endpoints.ts
+  /Shared     (Code shared across Core, WMS and ASRS, e.g. Types, Shared Components)
+    /components
+      /Button</code></pre>
+
+    <h4>2. The Golden Rules of Dependency</h4>
+    <p>We must enforce these rules to ensure the modules can eventually be split:</p>
+
+    <ol>
+        <li><strong>Core</strong> cannot import from <strong>WMS</strong> or <strong>ASRS</strong>. (Host shouldn't depend on Remotes).</li>
+        <li><strong>Core</strong> <em>can</em> import from <strong>Shared</strong>.</li>
+        <li><strong>WMS</strong> cannot import from <strong>ASRS</strong>. (Remotes should be siblings, not parents).</li>
+        <li><strong>WMS</strong> <em>can</em> import from <strong>Core</strong> and <strong>Shared</strong>.</li>
+        <li><strong>ASRS</strong> <em>can</em> import from <strong>Core</strong>, <strong>Shared</strong> and <strong>WMS</strong> (tentative).</li>
+        <li><strong>Shared</strong> cannot import from anywhere (Leaf node).</li>
+    </ol>
+
+    <hr>
+
+    <h3>Recommended Tools</h3>
+
+    <h4>1. Visualization & Analysis: <code>madge</code></h4>
+    <p><code>madge</code> is excellent for generating visual graphs of our dependencies and finding circular references.</p>
+
+    <ul>
+        <li><strong>Install</strong>: <code>npm install -g madge</code></li>
+        <li><strong>Usage</strong>:
+            <ul>
+                <li><strong>Find Circular Dependencies</strong>: <code>madge --circular ./src</code></li>
+                <li><strong>Visualize WMS Dependencies</strong>: <code>madge --image graph.png ./src/WMS</code></li>
+                <li><strong>Check what WMS depends on</strong>: <code>madge --summary ./src/WMS</code></li>
+            </ul>
+        </li>
+    </ul>
+
+    <h4>2. Strict Enforcement: <code>dependency-cruiser</code></h4>
+    <p>It allows us to write rules in JSON/JS that fail the build if a forbidden import occurs.</p>
+
+    <ul>
+        <li><strong>Install</strong>: <code>npm install --save-dev dependency-cruiser</code></li>
+        <li><strong>Configuration</strong> (<code>.dependency-cruiser.js</code>):
+            <pre><code>module.exports = {
+  forbidden: [
+    {
+      name: 'no-wms-to-asrs',
+      comment: 'WMS cannot depend on ASRS',
+      from: { path: '^src/WMS' },
+      to: { path: '^src/ASRS' }
+    },
+    {
+      name: 'no-core-to-modules',
+      comment: 'Core cannot depend on Feature Modules',
+      from: { path: '^src/Core' },
+      to: { path: '^src/(WMS|ASRS)' }
+    },
+    ...
+  ]
+};</code></pre>
+        </li>
+        <li><strong>Run it</strong>: <code>npx depcruise --validate .dependency-cruiser.js src</code></li>
+    </ul>
+
+    <h4>3. Linter Enforcement: <code>eslint-plugin-boundaries</code></h4>
+    <p>For real-time feedback in VS Code (red squiggly lines), use this ESLint plugin.</p>
+
+    <ul>
+        <li><strong>Install</strong>: <code>npm install --save-dev eslint-plugin-boundaries</code></li>
+        <li><strong>Config</strong>:
+            <pre><code>"settings": {
+  "boundaries/elements": [
+    { "type": "Core", "pattern": "src/Core" },
+    { "type": "WMS", "pattern": "src/WMS" },
+    { "type": "ASRS", "pattern": "src/ASRS" },
+    { "type": "Shared", "pattern": "src/Shared" },
+  ]
+},
+"rules": {
+  "boundaries/element-types": [
+    2,
+    {
+      "default": "disallow",
+      "rules": [
+        { "from": "WMS", "allow": ["Core", "Shared"] },
+        { "from": "ASRS", "allow": ["Core", "Shared"] },
+        { "from": "Core", "allow": ["Shared"] },
+        { "from": "Shared", "allow": [] } 
+      ]
+    }
+  ]
+}</code></pre>
+        </li>
+    </ul>
+
+    <h3>State Management Strategy: Dynamic Redux</h3>
+
+    <p>A common blocker in Modular Monoliths is the root <code>store.ts</code> importing reducers from all modules. This violates the rule that <strong>Core cannot import from WMS</strong>.</p>
+
+    <h4>The Problem</h4>
+    <pre><code>// ❌ BAD: Core depends on WMS
+import { wmsReducer } from '../WMS/reducer'; 
+export const store = configureStore({
+  reducer: {
+    auth: authReducer,
+    wms: wmsReducer, // <--- Hard dependency!
+  },
+});</code></pre>
+
+    <h4>The Solution: Reducer Injection & Context</h4>
+    <p>In Module Federation, we <strong>cannot</strong> import the <code>store</code> instance directly from another repo. However, because <code>react-redux</code> is a shared singleton, Remotes can access the Store via <strong>React Context</strong> provided by the Host.</p>
+
+    <h5>1. Modify Core Store (<code>src/Core/store/index.ts</code>)</h5>
+    <p>Core needs to expose a utility to allow Remotes to add their reducers.</p>
+
+    <pre><code>import { combineReducers, configureStore } from '@reduxjs/toolkit';
+import { authReducer } from './authSlice';
+
+// Define static reducers (Core only)
+const staticReducers = { auth: authReducer };
+const asyncReducers: Record<string, any> = {};
+
+export const store = configureStore({ reducer: staticReducers });
+
+// --- EXPORT THIS UTILITY ---
+// In the future, Core will expose this file as 'Core/StoreUtils'
+export const injectReducer = (key: string, reducer: any) => {
+  if (asyncReducers[key]) return;
+  asyncReducers[key] = reducer;
+  store.replaceReducer(combineReducers({ ...staticReducers, ...asyncReducers }));
+};</code></pre>
+
+    <h5>2. Register in Module (<code>src/WMS/index.tsx</code>)</h5>
+    <p>WMS uses the injected utility.</p>
+
+    <p><strong>Q: How can WMS import from Core in Federation?</strong></p>
+
+    <p>WMS cannot access Core's files directly. To make this work, we use <strong>Bi-directional Federation</strong>:</p>
+    <ol>
+        <li><strong>Core</strong> acts as a Host, but <em>also</em> as a Remote. It <code>exposes</code> the <code>./StoreUtils</code> file in its webpack config.</li>
+        <li><strong>WMS</strong> lists <code>Core</code> in its <code>remotes</code> configuration.</li>
+        <li>At runtime, Module Federation resolves <code>import ... from 'Core/StoreUtils'</code> to the already-loaded Core instance.</li>
+    </ol>
+
+    <p><strong>Q: How are types resolved?</strong></p>
+
+    <p>Since <code>Core</code> is in a different repo, TypeScript in <code>WMS</code> won't find the definitions for <code>'Core/StoreUtils'</code>. We have two options:</p>
+
+    <ol>
+        <li><strong>The Modern Way (Recommended)</strong>: Use the <code>@module-federation/typescript</code> plugin.
+            <ul>
+                <li>It automatically downloads the <code>d.ts</code> files from Core's build output into WMS's <code>node_modules/@types</code> folder during the build process.</li>
+                <li>This keeps types perfectly in sync without manual work.</li>
+            </ul>
+        </li>
+        <li><strong>The Manual Way</strong>: Create a declaration file in WMS.
+            <ul>
+                <li>Create <code>src/remotes.d.ts</code>:
+                    <pre><code>declare module 'Core/StoreUtils' {
+    export const injectReducer: (key: string, reducer: any) => void;
+}</code></pre>
+                </li>
+            </ul>
+        </li>
+    </ol>
+
+    <pre><code>import { useEffect } from 'react';
+// Refactor Phase: import { injectReducer } from '@core/store';
+// Split Phase: import { injectReducer } from 'Core/StoreUtils'; 
+import { wmsReducer } from './slices/wmsSlice';
+
+export const WmsApp = () => {
+  useEffect(() => {
+    injectReducer('wms', wmsReducer);
+  }, []);
+  return &lt;div&gt;WMS Content&lt;/div&gt;;
+};</code></pre>
+
+    <h5>3. Using Selectors</h5>
+    <p>Modules can use <code>useSelector</code> hook, which connects to the <code>&lt;Provider&gt;</code> in Core.</p>
+
+    <pre><code>import { useSelector } from 'react-redux';
+import { RootState } from '../../Shared/types'; 
+
+export const WmsDashboard = () => {
+  // This works because WMS is rendered inside Core's Provider
+  const user = useSelector((state: RootState) => state.auth.user);
+  
+  return &lt;h1&gt;Hello {user.name}&lt;/h1&gt;;
+};</code></pre>
+
+    <h4>Rules for Selectors</h4>
+    <ol>
+        <li><strong>Non-Core modules selecting Core state</strong>: <strong>Allowed</strong>. (<code>state.auth.user</code>)</li>
+        <li><strong>Core selecting Non-Core states</strong>: <strong>Forbidden</strong>. Core should not know <code>state.wms</code> exists, for example.</li>
+        <li><strong>Non-Core modules selecting other Non-Core states</strong>: <strong>Forbidden</strong>. Cross module state reading should be avoided to have clear separation</li>
+    </ol>
+
+    <hr>
+
+    <h3>Phase 2: The Proof of Concept (In-Repo Split)</h3>
+
+    <p>Before moving code to separate Git repositories, we will build the actual Microfrontend architecture <em>inside</em> the current repository. This allows us to verify the build pipeline, Docker setup, and runtime integration without the overhead of managing multiple repos.</p>
+
+    <h4>1. Create Independent Projects</h4>
+    <p>Create a new folder structure (e.g., <code>apps/</code>) alongside your existing <code>src/</code>.</p>
+    <ul>
+        <li><code>apps/Core</code>: A standalone React project.</li>
+        <li><code>apps/WMS</code>: A standalone React project.</li>
+        <li><code>apps/ASRS</code>: A standalone React project.</li>
+        <li><code>packages/Shared</code>: Shared logic/types/components (symlinked or local npm package).</li>
+    </ul>
+
+    <h4>2. Configure Module Federation</h4>
+    <p>Set up <code>webpack.config.ts</code> for each project.</p>
+    <ul>
+        <li><strong>Core</strong>: Configured as Host (<code>remotes: { wms: '...' }</code>).</li>
+        <li><strong>WMS</strong>: Configured as Remote (<code>exposes: { './App': './src/App' }</code>).</li>
+        <li><strong>ASRS</strong>: Configured as Remote (<code>exposes: { './App': './src/App' }</code>).</li>
+        <li><strong>Shared</strong>: Configured as symlinked or local npm package</li>
+    </ul>
+
+    <h4>3. Docker & Orchestration</h4>
+    <p>We need to prove that these apps can run as a cohesive SPA in a production-like environment.</p>
+
+    <ol>
+        <li><strong>Dockerfiles</strong>: Create a <code>Dockerfile</code> for each app (<code>apps/WMS/Dockerfile</code>) that builds the static assets and serves them (e.g., via Nginx).</li>
+        <li><strong>Root <code>docker-compose.yml</code></strong>:
+            <pre><code>services:
+  # The Old Monolith (Reference)
+  monolith:
+    build: .
+    ports: ["3000:80"]
+
+  # The New Microfrontends
+  mf-core:
+    build: ./apps/Core
+    ports: ["3001:80"]
+  mf-wms:
+    build: ./apps/WMS
+    ports: ["3002:80"]
+  mf-asrs:
+    build: ./apps/ASRS
+    ports: ["3003:80"]
+</code></pre>
+        </li>
+    </ol>
+
+    <h4>4. Verification</h4>
+    <p>Run <code>docker-compose up</code>. You should be able to:</p>
+    <ol>
+        <li>Open <code>localhost:3000</code> and see the Old Monolith working.</li>
+        <li>Open <code>localhost:3001</code> and see the New Core loading WMS from <code>localhost:3002</code> and ASRS from <code>localhost:3003</code></li>
+    </ol>
+
+    <hr>
+
+    <h3>Phase 3: The Physical Split (Migration)</h3>
+
+    <p>Once the <code>docker-compose</code> setup proves that the Microfrontend architecture works as a single SPA:</p>
+
+    <ol>
+        <li><strong>Create New Repositories</strong> (e.g., <code>ht-core</code> and <code>ht-shared-modules</code>).</li>
+        <li><strong>Migrate Projects</strong>:
+            <ul>
+                <li>Move <code>apps/Core</code> -> <code>ht-core</code> repo.</li>
+                <li>Move <code>apps/WMS</code> -> <code>WMS</code> monorepo.</li>
+                <li>Move <code>apps/ASRS</code> -> <code>rr_oks</code> / <code>ASRS</code> repo.</li>
+                <li>Move <code>packages/Shared</code> -> <code>ht-shared-modules</code> repo</li>
+            </ul>
+        </li>
+        <li><strong>Migrate CI/CD</strong>: Copy the Docker build steps from the root <code>docker-compose</code> into the CI pipelines of the new repositories.</li>
+        <li><strong>Update docker-compose</strong>: Update the docker-compose of each repo to run the desired combination of services (with versioning management)</li>
+    </ol>
+
+</body>
+</html>
